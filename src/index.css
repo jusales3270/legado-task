@@ -1,0 +1,223 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Kanban Board Design System - Warm Sunrise Aesthetic */
+
+@layer base {
+  :root {
+    /* Legado Digital Design System - Light Mode */
+    /* Paleta baseada na logo: Teal #40b8b8, Azul escuro #1a2332, Rosa/Magenta para acentos */
+    
+    --background: 200 20% 97%;
+    --foreground: 210 40% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 40% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 40% 15%;
+
+    /* Primary: Teal da Legado Digital #40b8b8 */
+    --primary: 180 49% 49%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: Azul acinzentado claro */
+    --secondary: 200 15% 94%;
+    --secondary-foreground: 210 40% 15%;
+
+    /* Muted */
+    --muted: 200 15% 94%;
+    --muted-foreground: 210 20% 45%;
+
+    /* Accent: Teal complementar */
+    --accent: 180 49% 49%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 200 15% 88%;
+    --input: 200 15% 88%;
+    --ring: 180 49% 49%;
+
+    --radius: 0.5rem;
+
+    /* Cores dos boards - Paleta Legado */
+    --board-teal: 180 49% 49%;
+    --board-purple: 280 70% 55%;
+    --board-green: 160 60% 45%;
+    --board-red: 0 70% 55%;
+    --board-blue: 210 70% 55%;
+    --board-magenta: 320 70% 55%;
+
+    /* Cores das tags */
+    --tag-red: 0 84% 60%;
+    --tag-teal: 180 49% 49%;
+    --tag-yellow: 45 93% 58%;
+    --tag-green: 160 60% 45%;
+    --tag-blue: 210 70% 55%;
+    --tag-purple: 280 70% 55%;
+    --tag-pink: 320 70% 60%;
+
+    /* Sidebar - Tema claro */
+    --sidebar-background: 200 20% 97%;
+    --sidebar-foreground: 210 40% 15%;
+    --sidebar-primary: 180 49% 49%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 200 15% 94%;
+    --sidebar-accent-foreground: 210 40% 15%;
+    --sidebar-border: 200 15% 88%;
+    --sidebar-ring: 180 49% 49%;
+  }
+
+  .dark {
+    /* Legado Digital Dark Mode - PRETO PURO #000000 */
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
+
+    /* Card - cinza muito escuro para contraste */
+    --card: 0 0% 8%;
+    --card-foreground: 0 0% 100%;
+
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 100%;
+
+    /* Primary: Teal da Legado Digital #40b8b8 */
+    --primary: 180 49% 49%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary: Cinza escuro */
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 100%;
+
+    /* Muted */
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 60%;
+
+    /* Accent: Teal */
+    --accent: 180 49% 49%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
+    --ring: 180 49% 49%;
+
+    /* Sidebar - PRETO PURO #000000 */
+    --sidebar-background: 0 0% 0%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 180 49% 49%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 12%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 0 0% 15%;
+    --sidebar-ring: 180 49% 49%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-['Outfit',sans-serif];
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-['Outfit',sans-serif];
+  }
+}
+
+@layer utilities {
+  .transition-smooth {
+    transition: all 0.3s ease-in-out;
+  }
+
+  .transition-bounce {
+    transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  }
+
+  /* Drag and Drop Animations */
+  .dragging {
+    opacity: 0.5;
+    cursor: grabbing !important;
+  }
+
+  .drag-overlay {
+    animation: dragPulse 0.3s ease-in-out;
+    cursor: grabbing !important;
+  }
+
+  @keyframes dragPulse {
+    0% {
+      transform: scale(1) rotate(0deg);
+    }
+    50% {
+      transform: scale(1.05) rotate(2deg);
+    }
+    100% {
+      transform: scale(1.02) rotate(3deg);
+    }
+  }
+
+  .drop-zone-active {
+    background: rgba(255, 255, 255, 0.15) !important;
+    border: 2px dashed rgba(255, 255, 255, 0.4) !important;
+    transform: scale(1.02);
+  }
+
+  .card-drop-animation {
+    animation: cardDrop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  @keyframes cardDrop {
+    0% {
+      transform: scale(1.1) translateY(-10px);
+      opacity: 0.8;
+    }
+    100% {
+      transform: scale(1) translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .card-drag-start {
+    animation: cardLift 0.2s ease-out;
+  }
+
+  @keyframes cardLift {
+    0% {
+      transform: scale(1);
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    }
+    100% {
+      transform: scale(1.05);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
+    }
+  }
+
+  /* Ghost Placeholder */
+  .ghost-placeholder {
+    background: rgba(255, 255, 255, 0.3);
+    border: 2px dashed rgba(255, 255, 255, 0.5);
+    border-radius: 0.5rem;
+    animation: ghostPulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes ghostPulse {
+    0%, 100% {
+      opacity: 0.3;
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+    50% {
+      opacity: 0.5;
+      border-color: rgba(255, 255, 255, 0.6);
+    }
+  }
+}

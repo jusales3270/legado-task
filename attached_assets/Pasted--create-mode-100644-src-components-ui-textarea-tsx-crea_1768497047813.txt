@@ -1,0 +1,56 @@
+ create mode 100644 src/components/ui/textarea.tsx
+ create mode 100644 src/components/ui/toast.tsx
+ create mode 100644 src/components/ui/toaster.tsx
+ create mode 100644 src/components/ui/toggle-group.tsx
+ create mode 100644 src/components/ui/toggle.tsx
+ create mode 100644 src/components/ui/tooltip.tsx
+ create mode 100644 src/components/ui/use-toast.ts
+ create mode 100644 src/hooks/use-mobile.tsx
+ create mode 100644 src/hooks/use-toast.ts
+ create mode 100644 src/index.css
+ create mode 100644 src/lib/store.ts
+ create mode 100644 src/lib/utils.ts
+ create mode 100644 src/main.tsx
+ create mode 100644 src/pages/AllBoards.tsx
+ create mode 100644 src/pages/BoardCalendarView.tsx
+ create mode 100644 src/pages/BoardView.tsx
+ create mode 100644 src/pages/ClientPortal.tsx
+ create mode 100644 src/pages/Favorites.tsx
+ create mode 100644 src/pages/Index.tsx
+ create mode 100644 src/pages/Login.tsx
+ create mode 100644 src/pages/NotFound.tsx
+ create mode 100644 src/pages/Recent.tsx
+ create mode 100644 src/vite-env.d.ts
+ create mode 100644 supabase/config.toml
+ create mode 100644 supabase/functions/transcribe-audio/index.ts
+ create mode 100644 supabase/migrations/20251219171157_53d35375-6142-49c8-8e72-a6f930a87562.sql
+ create mode 100644 supabase/migrations/20251222145239_c5634fe5-5d4b-497b-b018-4670a7134a02.sql
+ create mode 100644 tailwind.config.ts
+ create mode 100644 tsconfig.app.json
+ create mode 100644 tsconfig.json
+ create mode 100644 tsconfig.node.json
+ create mode 100644 uploads/1767985590688-s2mklo.mp3
+ create mode 100644 uploads/1768214263352-85ylpu.png
+ create mode 100644 uploads/1768300475001-klab7t.mp4
+ create mode 100644 uploads/1768302705347-1stbk2.mp4
+ create mode 100644 uploads/1768314392154-9yxd8o.mp4
+ create mode 100644 uploads/chunks/1768313874465-lyonjs/session.json
+ create mode 100644 uploads/thumb_1768300716749-90k9rn.jpg
+ create mode 100644 uploads/thumb_1768314392154-9yxd8o.jpg
+ create mode 100644 uploads/thumb_1768327144283-hp7zue.jpg
+ create mode 100644 vite.config.ts
+Enumerating objects: 155, done.
+Counting objects: 100% (155/155), done.
+Delta compression using up to 8 threads
+Compressing objects: 100% (149/149), done.
+Writing objects: 100% (155/155), 214.06 MiB | 4.55 MiB/s, done.
+Total 155 (delta 6), reused 0 (delta 0), pack-reused 0 (from 0)
+remote: Resolving deltas: 100% (6/6), done.
+remote: error: Trace: cf37a7be899a8c68edf7c29be9616ee47cf6bab0b11ee9e75f4d17ab3772f6f1
+remote: error: See https://gh.io/lfs for more information.
+remote: error: File uploads/1768314392154-9yxd8o.mp4 is 202.83 MB; this exceeds GitHub's file size limit of 100.00 MB
+remote: error: File uploads/1768300475001-klab7t.mp4 is 185.47 MB; this exceeds GitHub's file size limit of 100.00 MB
+remote: error: GH001: Large files detected. You may want to try Git Large File Storage - https://git-lfs.github.com.
+To https://github.com/jusales3270/legado-task.git
+ ! [remote rejected] main -> main (pre-receive hook declined)
+error: failed to push some refs to 'https://github.com/jusales3270/legado-task.git'

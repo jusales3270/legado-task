@@ -1,0 +1,56 @@
+# Project Specification: Client Upload Portal & Role-Based Routing
+
+## 1. Project Overview
+We are building a frontend wrapper for an existing Kanban application. The goal is to implement a secure "Gateway" that routes users based on their role:
+- **Admins:** Redirected to the existing internal Kanban board.
+- **Clients:** Redirected to a dedicated, simplified "Upload Portal" to submit large video files and metadata.
+
+## 2. Core Features & User Flow
+
+### A. Authentication & Routing (The Gateway)
+- **Login Screen:** Clean, modern UI with Email/Password fields.
+- **Logic:**
+  1. User authenticates (Supabase Auth or Mock).
+  2. System checks `user_role` in the database.
+  3. **IF Admin:** Redirect to `/kanban` (existing route).
+  4. **IF Client:** Redirect to `/client-portal` (new route).
+
+### B. Client Upload Portal (New Interface)
+A minimalist, distraction-free dashboard for clients.
+**UI Components:**
+1.  **Header:** Simple branding + "Logout" button.
+2.  **Upload Form Container:**
+    * **Urgency Selector:** A dropdown/select component with color-coded badges:
+        * Low (Blue)
+        * Normal (Green)
+        * High (Orange)
+        * Critical (Red)
+    * **Deadline Input:** A Date Picker component.
+    * **File Uploader (Critical):** * Must support **Large Files (1GB+)**.
+        * Use a UI pattern similar to "Uppy.js" or a drag-and-drop zone with a visual progress bar.
+        * *Technical Note for AI:* The upload logic must simulate or implement a **Direct-to-Storage** pattern (Presigned URLs) to avoid server timeouts. Do not try to pass the file through a standard API route.
+    * **Submit Button:** Disabled until upload is complete.
+
+### C. Data Integration (The Handover)
+When the Client submits the form:
+1.  The file is uploaded to Storage (e.g., Bucket).
+2.  A new record is created in the database (Table: `tasks` or `cards`).
+3.  **Fields to populate:**
+    * `file_url`: (The link generated from the upload)
+    * `urgency`: (Selected value)
+    * `due_date`: (Selected date)
+    * `status`: Default to "Inbox" or "To Do".
+    * `client_id`: Current user ID.
+4.  **Success State:** Show a full-screen success animation ("File Sent Successfully") and a button to "Send Another File".
+
+## 3. Tech Stack & Styling Preferences
+- **Framework:** React / TypeScript.
+- **Styling:** Tailwind CSS + shadcn/ui components (for high-quality look).
+- **Icons:** Lucide-React.
+- **Color Palette:** Dark mode preferred. Professional, cinema/studio aesthetic.
+- **State Management:** React Query (TanStack Query) for handling upload states.
+
+## 4. Specific Instructions for Code Generation
+- **Do not** regenerate the Kanban board logic. Assume the `/kanban` route exists. Focus on the **Login** and the **Client Portal**.
+- Ensure the Uploader component visually handles "Loading", "Error", and "Success" states distinctly.
+- The "Urgency" dropdown should visually change the border color of the input based on selection (e.g., selecting 'Critical' turns the border red).
