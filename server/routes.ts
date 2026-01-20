@@ -2,6 +2,7 @@ import type { Express, Request, Response } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import os from "os";
 import bcrypt from "bcryptjs";
 import { exec } from "child_process";
 import { db } from "./db";
@@ -9,9 +10,16 @@ import { users, tasks, clientSubmissions, submissionAttachments, boards, lists, 
 import { eq, desc } from "drizzle-orm";
 import { supabase, STORAGE_BUCKET, ensureBucketExists } from "./supabase";
 
-const uploadDir = path.join(process.cwd(), "uploads");
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+const uploadDir = process.env.VERCEL
+  ? path.join(os.tmpdir(), "uploads")
+  : path.join(process.cwd(), "uploads");
+
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (error) {
+  console.error("Failed to create upload directory:", error);
 }
 
 const storage = multer.diskStorage({
@@ -305,7 +313,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         role: users.role,
         profilePhoto: users.profilePhoto,
       }).from(users).where(eq(users.id, userId));
-      
+
       if (!user) {
         return res.status(404).json({ error: "User not found" });
       }
@@ -435,7 +443,7 @@ export async function registerRoutes(app: Express): Promise<void> {
   const generateVideoThumbnail = async (videoPath: string, thumbnailPath: string): Promise<boolean> => {
     return new Promise((resolve) => {
       const command = `ffmpeg -i "${videoPath}" -ss 00:00:01 -vframes 1 -vf "scale=320:-1" -y "${thumbnailPath}"`;
-      
+
       exec(command, (error) => {
         if (error) {
           console.error("FFmpeg error:", error.message);
@@ -588,17 +596,24 @@ export async function registerRoutes(app: Express): Promise<void> {
   });
 
   // ===== CHUNKED UPLOAD ENDPOINTS =====
-  
-  const chunksDir = path.join(process.cwd(), "uploads", "chunks");
-  if (!fs.existsSync(chunksDir)) {
-    fs.mkdirSync(chunksDir, { recursive: true });
+
+  const chunksDir = process.env.VERCEL
+    ? path.join(os.tmpdir(), "chunks")
+    : path.join(process.cwd(), "uploads", "chunks");
+
+  try {
+    if (!fs.existsSync(chunksDir)) {
+      fs.mkdirSync(chunksDir, { recursive: true });
+    }
+  } catch (error) {
+    console.error("Failed to create chunks directory:", error);
   }
 
   // Initialize a chunked upload session
   app.post("/api/chunked-upload/init", async (req: Request, res: Response) => {
     try {
       const { fileName, fileSize, mimeType, submissionId } = req.body;
-      
+
       if (!fileName || !fileSize || !submissionId) {
         return res.status(400).json({ error: "fileName, fileSize e submissionId são obrigatórios" });
       }
@@ -618,7 +633,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         uploadedChunks: [] as number[],
         createdAt: new Date().toISOString(),
       };
-      
+
       fs.writeFileSync(
         path.join(uploadSessionDir, "session.json"),
         JSON.stringify(sessionData, null, 2)
@@ -636,7 +651,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     try {
       const { uploadId } = req.params;
       const sessionPath = path.join(chunksDir, uploadId, "session.json");
-      
+
       if (!fs.existsSync(sessionPath)) {
         return res.status(404).json({ error: "Sessão de upload não encontrada" });
       }
@@ -660,7 +675,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       const chunkIdx = parseInt(chunkIndex);
       const sessionDir = path.join(chunksDir, uploadId);
       const sessionPath = path.join(sessionDir, "session.json");
-      
+
       if (!fs.existsSync(sessionPath)) {
         return res.status(404).json({ error: "Sessão de upload não encontrada" });
       }
@@ -681,10 +696,10 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
       fs.writeFileSync(sessionPath, JSON.stringify(sessionData, null, 2));
 
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         chunkIndex: chunkIdx,
-        uploadedChunks: sessionData.uploadedChunks.length 
+        uploadedChunks: sessionData.uploadedChunks.length
       });
     } catch (error) {
       console.error("Upload chunk error:", error);
@@ -698,7 +713,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       const { uploadId } = req.params;
       const sessionDir = path.join(chunksDir, uploadId);
       const sessionPath = path.join(sessionDir, "session.json");
-      
+
       if (!fs.existsSync(sessionPath)) {
         return res.status(404).json({ error: "Sessão de upload não encontrada" });
       }
@@ -709,10 +724,10 @@ export async function registerRoutes(app: Express): Promise<void> {
       // Calculate expected chunks
       const chunkSize = 10 * 1024 * 1024; // 10MB
       const expectedChunks = Math.ceil(fileSize / chunkSize);
-      
+
       if (uploadedChunks.length < expectedChunks) {
-        return res.status(400).json({ 
-          error: `Upload incompleto: ${uploadedChunks.length}/${expectedChunks} chunks recebidos` 
+        return res.status(400).json({
+          error: `Upload incompleto: ${uploadedChunks.length}/${expectedChunks} chunks recebidos`
         });
       }
 
@@ -720,9 +735,9 @@ export async function registerRoutes(app: Express): Promise<void> {
       const ext = path.extname(fileName);
       const finalFileName = `${Date.now()}-${Math.random().toString(36).substring(7)}${ext}`;
       const finalPath = path.join(uploadDir, finalFileName);
-      
+
       const writeStream = fs.createWriteStream(finalPath);
-      
+
       for (let i = 0; i < expectedChunks; i++) {
         const chunkPath = path.join(sessionDir, `chunk_${i}`);
         if (!fs.existsSync(chunkPath)) {
@@ -732,7 +747,7 @@ export async function registerRoutes(app: Express): Promise<void> {
         const chunkData = fs.readFileSync(chunkPath);
         writeStream.write(chunkData);
       }
-      
+
       await new Promise<void>((resolve) => writeStream.end(resolve));
 
       // Determine file type
@@ -779,7 +794,7 @@ export async function registerRoutes(app: Express): Promise<void> {
           if (thumbnailUrl && fs.existsSync(path.join(uploadDir, `thumb_${finalFileName.replace(/\.[^.]+$/, ".jpg")}`))) {
             const thumbFilePath = `submissions/${submissionId}/${timestamp}_thumb_${safeName.replace(/\.[^.]+$/, ".jpg")}`;
             const thumbLocalPath = path.join(uploadDir, `thumb_${finalFileName.replace(/\.[^.]+$/, ".jpg")}`);
-            
+
             const { error: thumbUploadError } = await supabase.storage
               .from(STORAGE_BUCKET)
               .upload(thumbFilePath, fs.readFileSync(thumbLocalPath), {
@@ -848,7 +863,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       const videoPath = path.join(uploadDir, req.file.filename);
       const thumbnailFilename = `thumb_${req.file.filename.replace(/\.[^.]+$/, ".jpg")}`;
       const thumbPath = path.join(uploadDir, thumbnailFilename);
-      
+
       if (fileType === "video") {
         const success = await generateVideoThumbnail(videoPath, thumbPath);
         if (success && fs.existsSync(thumbPath)) {
