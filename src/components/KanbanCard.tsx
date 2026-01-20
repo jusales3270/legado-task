@@ -80,7 +80,7 @@ export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(
           >
             <GripVertical className="h-4 w-4" />
           </button>
-          <h4 className="flex-1 text-sm font-medium leading-snug">{card.title}</h4>
+          <h4 className="flex-1 text-sm font-medium leading-snug text-black">{card.title}</h4>
           <div className="flex items-center gap-1">
             {onDuplicate && (
               <Button
@@ -125,8 +125,8 @@ export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(
             {card.checklist && card.checklist.length > 0 && (
               <div
                 className={`flex items-center gap-1 rounded px-2 py-0.5 text-xs ${completedChecklist === totalChecklist
-                    ? "bg-green-500/10 text-green-600"
-                    : "bg-muted text-muted-foreground"
+                  ? "bg-green-500/10 text-green-600"
+                  : "bg-muted text-muted-foreground"
                   }`}
               >
                 <CheckSquare className="h-3 w-3" />
