@@ -111,6 +111,22 @@ export function registerRoutes(app: Express): Server {
         result.message = "Admin user created.";
       }
 
+      // Check boards table and creation
+      try {
+        const [testBoard] = await db.insert(boards).values({
+          title: "Diagnóstico Teste",
+          description: "Teste automático de criação",
+          ownerId: admin.id,
+          color: "#000000"
+        }).returning();
+
+        // Clean up
+        await db.delete(boards).where(eq(boards.id, testBoard.id));
+        result.message += " Board creation test PASSED.";
+      } catch (e: any) {
+        result.message += ` Board Insert Error: ${e.message}`;
+      }
+
       res.json(result);
     } catch (error: any) {
       console.error("Diagnostics error:", error);
@@ -378,7 +394,7 @@ export function registerRoutes(app: Express): Server {
 
       res.json(board);
     } catch (error) {
-      res.status(500).json({ error: "Failed to create board" });
+      res.status(500).json({ error: `Failed to create board: ${error.message}` });
     }
   });
 
