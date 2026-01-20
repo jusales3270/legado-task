@@ -128,14 +128,14 @@ class Store {
     const lists = board.lists.length > 0
       ? board.lists
       : [
-          {
-            id: `l${Date.now()}`,
-            title: "A fazer",
-            boardId: id,
-            cards: [],
-            order: 0,
-          },
-        ];
+        {
+          id: `l${Date.now()}`,
+          title: "A fazer",
+          boardId: id,
+          cards: [],
+          order: 0,
+        },
+      ];
 
     const newBoard: Board = {
       ...board,
@@ -241,6 +241,9 @@ class Store {
           listId,
           tags: [],
           members: [],
+          checklist: [],
+          attachments: [],
+          comments: [],
           archived: false,
           order: list.cards.length,
         };
