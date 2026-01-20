@@ -12,59 +12,33 @@ import BoardCalendarView from "./pages/BoardCalendarView";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import ClientPortal from "./pages/ClientPortal";
+import { useEffect } from "react";
 
 const queryClient = new QueryClient();
 
-// Simplified Protection Logic
+// Bypass Protection: Always renders children and ensures a session exists
 function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode; requiredRole?: string }) {
-  const userStr = localStorage.getItem("user");
-  const location = useLocation();
-
-  if (!userStr) {
-    return <Navigate to="/login" replace />;
-  }
-
-  try {
-    const user = JSON.parse(userStr);
-
-    // Basic structural check
-    if (!user || !user.role) {
-      localStorage.removeItem("user");
-      return <Navigate to="/login" replace />;
+  // Auto-login logic for "No Login Screen" mode
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (!userStr) {
+      const mockUser = {
+        id: 1,
+        name: "Admin Bypass",
+        email: "admin@demo.com",
+        role: "admin"
+      };
+      localStorage.setItem("user", JSON.stringify(mockUser));
+      console.log("Auto-logged in as Admin Bypass");
     }
+  }, []);
 
-    if (requiredRole && user.role !== requiredRole) {
-      // Correct role redirection
-      const targetPath = user.role === "admin" ? "/kanban" : "/client-portal";
-      // If we are already there, just render
-      if (location.pathname.startsWith(targetPath)) {
-        return <>{children}</>;
-      }
-      return <Navigate to={targetPath} replace />;
-    }
-
-    return <>{children}</>;
-  } catch (e) {
-    localStorage.removeItem("user");
-    return <Navigate to="/login" replace />;
-  }
+  return <>{children}</>;
 }
 
+// Redirects root to Kanban (Admin view) by default
 function AuthRedirect() {
-  const userStr = localStorage.getItem("user");
-
-  if (userStr) {
-    try {
-      const user = JSON.parse(userStr);
-      if (user && user.role) {
-        return <Navigate to={user.role === "admin" ? "/kanban" : "/client-portal"} replace />;
-      }
-    } catch {
-      localStorage.removeItem("user");
-    }
-  }
-
-  return <Navigate to="/login" replace />;
+  return <Navigate to="/kanban" replace />;
 }
 
 const App = () => (
@@ -76,6 +50,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<AuthRedirect />} />
+            {/* Login route kept accessible but not default */}
             <Route path="/login" element={<Login />} />
 
             <Route path="/client-portal" element={
