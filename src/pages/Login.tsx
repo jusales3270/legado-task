@@ -26,10 +26,23 @@ export default function Login() {
   const [clientEmail, setClientEmail] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
+  const [logs, setLogs] = useState<string[]>([]);
+
+  const appendLog = (msg: string) => {
+    console.log(msg);
+    setLogs(prev => [...prev, `${new Date().toLocaleTimeString()} - ${msg}`]);
+  };
 
   useEffect(() => {
     const previousTheme = theme;
     setTheme("dark");
+    appendLog("Componente Login montado");
+
+    // Test connectivity
+    fetch("/api/basic")
+      .then(res => res.json().then(data => ({ status: res.status, data })))
+      .then(res => appendLog(`Teste API (/api/basic): ${res.status} - ${JSON.stringify(res.data)}`))
+      .catch(err => appendLog(`Erro API (/api/basic): ${err.message}`));
 
     return () => {
       if (previousTheme && previousTheme !== "dark") {
@@ -40,30 +53,43 @@ export default function Login() {
 
   const clientLoginMutation = useMutation({
     mutationFn: async (email: string) => {
-      const response = await fetch("/api/auth/client-login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
-      });
+      appendLog(`Iniciando login de cliente: ${email}`);
+      try {
+        const response = await fetch("/api/auth/client-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Falha no acesso");
+        appendLog(`Status Resposta API: ${response.status} ${response.statusText}`);
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          appendLog(`Corpo Erro API: ${errorText}`);
+          let errorJson;
+          try { errorJson = JSON.parse(errorText); } catch (e) { errorJson = { error: errorText }; }
+          throw new Error(errorJson.error || "Falha no acesso");
+        }
+
+        const data = await response.json();
+        appendLog(`Dados Recebidos: ${JSON.stringify(data)}`);
+        return data as LoginResponse;
+      } catch (err: any) {
+        appendLog(`Erro Catch Mutation: ${err.message}`);
+        throw err;
       }
-
-      return response.json() as Promise<LoginResponse>;
     },
     onSuccess: (data) => {
-      console.log("Login success, user data:", data);
+      appendLog("Sucesso! Salvando no localStorage e Redirecionando...");
       localStorage.setItem("user", JSON.stringify(data));
-      toast({
-        title: "Acesso realizado",
-        description: `Bem-vindo, ${data.name}! Redirecionando...`,
-      });
-      // Force hard redirect to ensure state is clean and bypass router issues
-      window.location.href = "/client-portal";
+
+      // Force hard redirect
+      setTimeout(() => {
+        window.location.href = "/client-portal";
+      }, 500);
     },
     onError: (error: Error) => {
+      appendLog(`Erro Final: ${error.message}`);
       toast({
         title: "Falha no acesso",
         description: error.message,
@@ -74,35 +100,44 @@ export default function Login() {
 
   const adminLoginMutation = useMutation({
     mutationFn: async (credentials: { email: string; password: string }) => {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(credentials),
-      });
+      appendLog(`Iniciando login adm: ${credentials.email}`);
+      try {
+        const response = await fetch("/api/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(credentials),
+        });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Falha no login");
+        appendLog(`Status Resposta API: ${response.status}`);
+
+        if (!response.ok) {
+          const error = await response.json();
+          appendLog(`Erro API: ${JSON.stringify(error)}`);
+          throw new Error(error.error || "Falha no login");
+        }
+
+        const data = await response.json();
+        appendLog(`Dados Adm Recebidos`);
+        return data as LoginResponse;
+      } catch (err: any) {
+        appendLog(`Erro Catch Adm: ${err.message}`);
+        throw err;
       }
-
-      return response.json() as Promise<LoginResponse>;
     },
     onSuccess: (data) => {
-      console.log("Admin login success, user data:", data);
       localStorage.setItem("user", JSON.stringify(data));
-      toast({
-        title: "Login realizado",
-        description: `Bem-vindo de volta, ${data.name}! Redirecionando...`,
-      });
+      appendLog("Sucesso Adm! Redirecionando...");
 
-      // Force hard redirect based on role
-      if (data.role === "admin") {
-        window.location.href = "/kanban";
-      } else {
-        window.location.href = "/client-portal";
-      }
+      setTimeout(() => {
+        if (data.role === "admin") {
+          window.location.href = "/kanban";
+        } else {
+          window.location.href = "/client-portal";
+        }
+      }, 500);
     },
     onError: (error: Error) => {
+      appendLog(`Erro Final Adm: ${error.message}`);
       toast({
         title: "Falha no login",
         description: error.message === "Invalid credentials" ? "Credenciais inválidas" : error.message,
@@ -122,9 +157,17 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
       <div className="absolute inset-0 bg-gradient-to-br from-background via-secondary to-background"></div>
       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMyMDIwMjAiIGZpbGwtb3BhY2l0eT0iMC4xIj48Y2lyY2xlIGN4PSIxIiBjeT0iMSIgcj0iMSIvPjwvZz48L2c+PC9zdmc+')] opacity-20"></div>
+
+      {/* Debug Panel */}
+      <div className="z-50 w-full max-w-md bg-black/90 text-green-400 p-4 rounded mb-4 font-mono text-xs overflow-auto max-h-60 border border-green-500/50 shadow-lg">
+        <h3 className="font-bold border-b border-green-500/30 mb-2 pb-1">DEBUG CONSOLE (Vercel Fix)</h3>
+        {logs.length === 0 ? <span className="opacity-50">Pronto para iniciar...</span> : logs.map((log, i) => (
+          <div key={i} className="whitespace-pre-wrap mb-1 border-b border-green-500/10 pb-1">{log}</div>
+        ))}
+      </div>
 
       <Card className="relative w-full max-w-md bg-card/95 border-border backdrop-blur-sm shadow-2xl" data-testid="card-login">
         <CardHeader className="space-y-4 sm:space-y-6 text-center pb-2 px-4 sm:px-6">
