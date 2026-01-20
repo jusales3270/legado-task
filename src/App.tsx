@@ -15,6 +15,7 @@ import ClientPortal from "./pages/ClientPortal";
 
 const queryClient = new QueryClient();
 
+// Simplified Protection Logic
 function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode; requiredRole?: string }) {
   const userStr = localStorage.getItem("user");
   const location = useLocation();
@@ -26,19 +27,17 @@ function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode;
   try {
     const user = JSON.parse(userStr);
 
-    // Safety check: if user has no role, force logout to prevent infinite loops
+    // Basic structural check
     if (!user || !user.role) {
-      console.error("User object missing role, forcing logout", user);
       localStorage.removeItem("user");
       return <Navigate to="/login" replace />;
     }
 
     if (requiredRole && user.role !== requiredRole) {
-      // Prevent redirect loop: if we are already at the target path, logout instead
+      // Correct role redirection
       const targetPath = user.role === "admin" ? "/kanban" : "/client-portal";
-
-      // Use location.pathname from useLocation for reliable matching
-      if (location.pathname === targetPath) {
+      // If we are already there, just render
+      if (location.pathname.startsWith(targetPath)) {
         return <>{children}</>;
       }
       return <Navigate to={targetPath} replace />;
@@ -46,7 +45,6 @@ function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode;
 
     return <>{children}</>;
   } catch (e) {
-    console.error("Auth error in ProtectedRoute:", e);
     localStorage.removeItem("user");
     return <Navigate to="/login" replace />;
   }
@@ -55,21 +53,18 @@ function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode;
 function AuthRedirect() {
   const userStr = localStorage.getItem("user");
 
-  if (!userStr) {
-    return <Navigate to="/login" replace />;
+  if (userStr) {
+    try {
+      const user = JSON.parse(userStr);
+      if (user && user.role) {
+        return <Navigate to={user.role === "admin" ? "/kanban" : "/client-portal"} replace />;
+      }
+    } catch {
+      localStorage.removeItem("user");
+    }
   }
 
-  try {
-    const user = JSON.parse(userStr);
-    if (!user || !user.role) {
-      localStorage.removeItem("user");
-      return <Navigate to="/login" replace />;
-    }
-    return <Navigate to={user.role === "admin" ? "/kanban" : "/client-portal"} replace />;
-  } catch (e) {
-    localStorage.removeItem("user");
-    return <Navigate to="/login" replace />;
-  }
+  return <Navigate to="/login" replace />;
 }
 
 const App = () => (
