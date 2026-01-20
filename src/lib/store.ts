@@ -184,6 +184,17 @@ class Store {
     return this.boards;
   }
 
+  getFavoriteBoards(): Board[] {
+    return this.boards.filter((b) => b.isFavorite);
+  }
+
+  getRecentBoards(): Board[] {
+    // Simple implementation: return top 5 recently updated
+    return this.boards
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 5);
+  }
+
   getBoard(id: string): Board | undefined {
     return this.boards.find((b) => b.id === id);
   }
