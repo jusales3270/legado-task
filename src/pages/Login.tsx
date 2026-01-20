@@ -54,12 +54,13 @@ export default function Login() {
       return response.json() as Promise<LoginResponse>;
     },
     onSuccess: (data) => {
+      console.log("Login success, user data:", data);
       localStorage.setItem("user", JSON.stringify(data));
       toast({
         title: "Acesso realizado",
         description: `Bem-vindo, ${data.name}! Redirecionando...`,
       });
-      // Force hard redirect to ensure state is clean
+      // Force hard redirect to ensure state is clean and bypass router issues
       window.location.href = "/client-portal";
     },
     onError: (error: Error) => {
@@ -87,16 +88,18 @@ export default function Login() {
       return response.json() as Promise<LoginResponse>;
     },
     onSuccess: (data) => {
+      console.log("Admin login success, user data:", data);
       localStorage.setItem("user", JSON.stringify(data));
       toast({
         title: "Login realizado",
-        description: `Bem-vindo de volta, ${data.name}!`,
+        description: `Bem-vindo de volta, ${data.name}! Redirecionando...`,
       });
 
+      // Force hard redirect based on role
       if (data.role === "admin") {
-        navigate("/kanban");
+        window.location.href = "/kanban";
       } else {
-        navigate("/client-portal");
+        window.location.href = "/client-portal";
       }
     },
     onError: (error: Error) => {
