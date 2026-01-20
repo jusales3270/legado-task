@@ -288,7 +288,7 @@ export function registerRoutes(app: Express): Server {
           clientId,
           title: title || "Sem título",
           urgency: urgency || "normal",
-          requestedDueDate: requestedDueDate ? new Date(requestedDueDate) : null,
+          requestedDueDate: requestedDueDate ? new Date(requestedDueDate).toISOString() : null,
           notes,
           status: "pendente",
         })
@@ -485,7 +485,7 @@ export function registerRoutes(app: Express): Server {
           description,
           position: position || 0,
           priority: priority || "medium",
-          dueDate: dueDate ? new Date(dueDate) : null,
+          dueDate: dueDate ? new Date(dueDate).toISOString() : null,
           coverImage,
         })
         .returning();
