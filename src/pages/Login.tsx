@@ -30,7 +30,7 @@ export default function Login() {
   useEffect(() => {
     const previousTheme = theme;
     setTheme("dark");
-    
+
     return () => {
       if (previousTheme && previousTheme !== "dark") {
         setTheme(previousTheme);
@@ -45,21 +45,22 @@ export default function Login() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Falha no acesso");
       }
-      
+
       return response.json() as Promise<LoginResponse>;
     },
     onSuccess: (data) => {
       localStorage.setItem("user", JSON.stringify(data));
       toast({
         title: "Acesso realizado",
-        description: `Bem-vindo, ${data.name}!`,
+        description: `Bem-vindo, ${data.name}! Redirecionando...`,
       });
-      navigate("/client-portal");
+      // Force hard redirect to ensure state is clean
+      window.location.href = "/client-portal";
     },
     onError: (error: Error) => {
       toast({
@@ -77,12 +78,12 @@ export default function Login() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(credentials),
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || "Falha no login");
       }
-      
+
       return response.json() as Promise<LoginResponse>;
     },
     onSuccess: (data) => {
@@ -91,7 +92,7 @@ export default function Login() {
         title: "Login realizado",
         description: `Bem-vindo de volta, ${data.name}!`,
       });
-      
+
       if (data.role === "admin") {
         navigate("/kanban");
       } else {
@@ -121,13 +122,13 @@ export default function Login() {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-gradient-to-br from-background via-secondary to-background"></div>
       <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMyMDIwMjAiIGZpbGwtb3BhY2l0eT0iMC4xIj48Y2lyY2xlIGN4PSIxIiBjeT0iMSIgcj0iMSIvPjwvZz48L2c+PC9zdmc+')] opacity-20"></div>
-      
+
       <Card className="relative w-full max-w-md bg-card/95 border-border backdrop-blur-sm shadow-2xl" data-testid="card-login">
         <CardHeader className="space-y-4 sm:space-y-6 text-center pb-2 px-4 sm:px-6">
           <div className="mx-auto">
-            <img 
-              src={loginLogo} 
-              alt="Legado Digital" 
+            <img
+              src={loginLogo}
+              alt="Legado Digital"
               className="h-20 sm:h-28 w-auto mx-auto rounded-lg"
             />
           </div>
@@ -138,7 +139,7 @@ export default function Login() {
             </CardDescription>
           </div>
         </CardHeader>
-        
+
         <CardContent>
           <Tabs defaultValue="client" className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6">
@@ -151,7 +152,7 @@ export default function Login() {
                 Administrativo
               </TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="client">
               <form onSubmit={handleClientSubmit} className="space-y-6">
                 <div className="space-y-2">
@@ -173,7 +174,7 @@ export default function Login() {
                     Acesse diretamente para enviar seus arquivos
                   </p>
                 </div>
-                
+
                 <Button
                   type="submit"
                   className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6 transition-all duration-300 shadow-lg shadow-primary/25"
@@ -194,7 +195,7 @@ export default function Login() {
                 </Button>
               </form>
             </TabsContent>
-            
+
             <TabsContent value="admin">
               <form onSubmit={handleAdminSubmit} className="space-y-6">
                 <div className="space-y-2">
@@ -213,7 +214,7 @@ export default function Login() {
                     />
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="admin-password" className="text-foreground">Senha</Label>
                   <div className="relative">
@@ -230,7 +231,7 @@ export default function Login() {
                     />
                   </div>
                 </div>
-                
+
                 <Button
                   type="submit"
                   className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6 transition-all duration-300 shadow-lg shadow-primary/25"
@@ -250,7 +251,7 @@ export default function Login() {
                   )}
                 </Button>
               </form>
-              
+
               <div className="mt-4 text-center">
                 <p className="text-muted-foreground text-xs">
                   Demo: admin@demo.com (senha: 1234)
