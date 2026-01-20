@@ -90,6 +90,10 @@ const BoardView = () => {
   );
 
   useEffect(() => {
+    if (id) {
+      store.fetchBoardData(id);
+    }
+
     const unsubscribe = store.subscribe(() => {
       if (id) {
         setBoard(store.getBoard(id));
@@ -210,22 +214,22 @@ const BoardView = () => {
   };
 
   const handleToggleFavorite = () => {
-     store.toggleFavorite(board.id);
-     toast({
-       title: board.isFavorite ? "Removido dos favoritos" : "Adicionado aos favoritos",
-     });
-   };
- 
-   const handleAddList = () => {
-     if (!newListTitle.trim()) return;
-     store.addList(board.id, newListTitle.trim());
-     setNewListTitle("");
-     setShowNewListInput(false);
-     toast({
-       title: "Lista criada!",
-       description: `A lista "${newListTitle}" foi adicionada.`,
-     });
-   };
+    store.toggleFavorite(board.id);
+    toast({
+      title: board.isFavorite ? "Removido dos favoritos" : "Adicionado aos favoritos",
+    });
+  };
+
+  const handleAddList = () => {
+    if (!newListTitle.trim()) return;
+    store.addList(board.id, newListTitle.trim());
+    setNewListTitle("");
+    setShowNewListInput(false);
+    toast({
+      title: "Lista criada!",
+      description: `A lista "${newListTitle}" foi adicionada.`,
+    });
+  };
 
   const handleAddClientTaskToBoard = async (submission: ClientSubmission, listId: string, submissionAttachments: SubmissionAttachment[] = []) => {
     try {
@@ -353,10 +357,10 @@ const BoardView = () => {
 
   const handleBoardScroll = () => {
     updateScrollState();
-    
+
     const container = scrollContainerRef.current;
     if (!container || !board) return;
-    
+
     const columnWidth = window.innerWidth < 640 ? window.innerWidth * 0.85 + 8 : 320 + 16;
     const scrollPosition = container.scrollLeft;
     const newIndex = Math.round(scrollPosition / columnWidth);
@@ -427,28 +431,28 @@ const BoardView = () => {
     setAnalyticsDialogOpen(false);
   };
   const handleAddCard = (listId: string, title: string) => {
-     store.addCard(listId, title);
-     toast({
-       title: "Card criado!",
-     });
-   };
- 
-   const handleDeleteCard = (cardId: string) => {
-     store.deleteCard(cardId);
-     toast({
-       title: "Card excluído",
-     });
-   };
- 
-   const handleDuplicateCard = (cardId: string) => {
-     const duplicatedCard = store.duplicateCard(cardId);
-     if (duplicatedCard) {
-       toast({
-         title: "Card duplicado!",
-         description: `"${duplicatedCard.title}" foi criado.`,
-       });
-     }
-   };
+    store.addCard(listId, title);
+    toast({
+      title: "Card criado!",
+    });
+  };
+
+  const handleDeleteCard = (cardId: string) => {
+    store.deleteCard(cardId);
+    toast({
+      title: "Card excluído",
+    });
+  };
+
+  const handleDuplicateCard = (cardId: string) => {
+    const duplicatedCard = store.duplicateCard(cardId);
+    if (duplicatedCard) {
+      toast({
+        title: "Card duplicado!",
+        description: `"${duplicatedCard.title}" foi criado.`,
+      });
+    }
+  };
 
   const handleCardClick = (cardId: string) => {
     setSelectedCardId(cardId);
@@ -488,12 +492,12 @@ const BoardView = () => {
   };
 
   const handleArchiveCard = (cardId: string) => {
-     store.toggleArchiveCard(cardId);
-     toast({
-       title: "Card arquivado",
-       description: "O card foi arquivado.",
-     });
-   };
+    store.toggleArchiveCard(cardId);
+    toast({
+      title: "Card arquivado",
+      description: "O card foi arquivado.",
+    });
+  };
 
   const handleAddComment = (cardId: string, text: string) => {
     const currentUser = localStorage.getItem("user");
@@ -565,7 +569,7 @@ const BoardView = () => {
               <Star className={`h-4 w-4 sm:h-5 sm:w-5 ${board.isFavorite ? "fill-white" : ""}`} />
             </Button>
             <div className="hidden sm:flex -space-x-2">
-              {board.members.slice(0, 5).map((member) => (
+              {(Array.isArray(board.members) ? board.members : []).slice(0, 5).map((member) => (
                 <Avatar key={member.id} className="h-8 w-8 border-2 border-white">
                   <AvatarFallback className="text-xs">{member.avatar}</AvatarFallback>
                 </Avatar>
@@ -671,11 +675,11 @@ const BoardView = () => {
           >
             <div className="flex min-w-max gap-2 sm:gap-4 h-full pb-6 px-2 sm:px-0">
               <SortableContext
-                items={board.lists.map((list) => list.id)}
+                items={(Array.isArray(board.lists) ? board.lists : []).map((list) => list.id)}
                 strategy={horizontalListSortingStrategy}
               >
-                {board.lists.map((list) => {
-                  const filteredCards = list.cards.filter((card) => {
+                {(Array.isArray(board.lists) ? board.lists : []).map((list) => {
+                  const filteredCards = (Array.isArray(list.cards) ? list.cards : []).filter((card) => {
                     const matchesText = filterText
                       ? card.title.toLowerCase().includes(filterText.toLowerCase())
                       : true;
@@ -774,11 +778,10 @@ const BoardView = () => {
                     behavior: "smooth",
                   });
                 }}
-                className={`w-2 h-2 rounded-full transition-all ${
-                  currentColumnIndex === index
-                    ? "bg-white scale-125"
-                    : "bg-white/40"
-                }`}
+                className={`w-2 h-2 rounded-full transition-all ${currentColumnIndex === index
+                  ? "bg-white scale-125"
+                  : "bg-white/40"
+                  }`}
                 aria-label={`Ir para coluna ${list.title}`}
               />
             ))}
@@ -792,11 +795,10 @@ const BoardView = () => {
                   behavior: "smooth",
                 });
               }}
-              className={`w-2 h-2 rounded-full transition-all ${
-                currentColumnIndex === board.lists.length
-                  ? "bg-white scale-125"
-                  : "bg-white/40"
-              }`}
+              className={`w-2 h-2 rounded-full transition-all ${currentColumnIndex === board.lists.length
+                ? "bg-white scale-125"
+                : "bg-white/40"
+                }`}
               aria-label="Adicionar nova lista"
             />
           </div>
@@ -1022,70 +1024,70 @@ const BoardView = () => {
                   {board.lists.some((list) =>
                     list.cards.some((card) => card.tags && card.tags.length > 0)
                   ) && (
-                    <div className="rounded-lg border bg-card/60 p-3">
-                      <p className="mb-2 text-xs font-semibold text-muted-foreground">Cards por tag</p>
-                      <div className="h-40">
-                        {(() => {
-                          const tagCounts = Array.from(
-                            board.lists
-                              .flatMap((list) => list.cards)
-                              .flatMap((card) => card.tags || [])
-                              .reduce((map, tag) => {
-                                const current = map.get(tag.name) || 0;
-                                map.set(tag.name, current + 1);
-                                return map;
-                              }, new Map<string, number>())
-                          ).map(([name, value]) => ({ name, value }));
+                      <div className="rounded-lg border bg-card/60 p-3">
+                        <p className="mb-2 text-xs font-semibold text-muted-foreground">Cards por tag</p>
+                        <div className="h-40">
+                          {(() => {
+                            const tagCounts = Array.from(
+                              board.lists
+                                .flatMap((list) => list.cards)
+                                .flatMap((card) => card.tags || [])
+                                .reduce((map, tag) => {
+                                  const current = map.get(tag.name) || 0;
+                                  map.set(tag.name, current + 1);
+                                  return map;
+                                }, new Map<string, number>())
+                            ).map(([name, value]) => ({ name, value }));
 
-                          const colors = [
-                            "hsl(var(--tag-red))",
-                            "hsl(var(--tag-orange))",
-                            "hsl(var(--tag-yellow))",
-                            "hsl(var(--tag-green))",
-                            "hsl(var(--tag-blue))",
-                            "hsl(var(--tag-purple))",
-                            "hsl(var(--tag-pink))",
-                          ];
+                            const colors = [
+                              "hsl(var(--tag-red))",
+                              "hsl(var(--tag-orange))",
+                              "hsl(var(--tag-yellow))",
+                              "hsl(var(--tag-green))",
+                              "hsl(var(--tag-blue))",
+                              "hsl(var(--tag-purple))",
+                              "hsl(var(--tag-pink))",
+                            ];
 
-                          return (
-                            <ChartContainer
-                              config={tagCounts.reduce(
-                                (acc, tag, index) => ({
-                                  ...acc,
-                                  [tag.name]: {
-                                    label: tag.name,
-                                    color: colors[index % colors.length],
-                                  },
-                                }),
-                                {} as ChartConfig
-                              )}
-                            >
-                              <PieChart>
-                                <Pie
-                                  data={tagCounts}
-                                  dataKey="value"
-                                  nameKey="name"
-                                  cx="50%"
-                                  cy="50%"
-                                  outerRadius={60}
-                                  innerRadius={30}
-                                  paddingAngle={2}
-                                >
-                                  {tagCounts.map((entry, index) => (
-                                    <Cell
-                                      key={entry.name}
-                                      fill={colors[index % colors.length]}
-                                    />
-                                  ))}
-                                </Pie>
-                                <ChartTooltip content={<ChartTooltipContent />} />
-                              </PieChart>
-                            </ChartContainer>
-                          );
-                        })()}
+                            return (
+                              <ChartContainer
+                                config={tagCounts.reduce(
+                                  (acc, tag, index) => ({
+                                    ...acc,
+                                    [tag.name]: {
+                                      label: tag.name,
+                                      color: colors[index % colors.length],
+                                    },
+                                  }),
+                                  {} as ChartConfig
+                                )}
+                              >
+                                <PieChart>
+                                  <Pie
+                                    data={tagCounts}
+                                    dataKey="value"
+                                    nameKey="name"
+                                    cx="50%"
+                                    cy="50%"
+                                    outerRadius={60}
+                                    innerRadius={30}
+                                    paddingAngle={2}
+                                  >
+                                    {tagCounts.map((entry, index) => (
+                                      <Cell
+                                        key={entry.name}
+                                        fill={colors[index % colors.length]}
+                                      />
+                                    ))}
+                                  </Pie>
+                                  <ChartTooltip content={<ChartTooltipContent />} />
+                                </PieChart>
+                              </ChartContainer>
+                            );
+                          })()}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
                 </div>
               </div>
             </div>

@@ -73,15 +73,14 @@ export const KanbanColumn = ({
       style={style}
       {...attributes}
       {...listeners}
-      className={`w-[85vw] sm:w-80 shrink-0 h-full flex flex-col cursor-grab active:cursor-grabbing transition-all duration-200 snap-center ${
-        isDragging
+      className={`w-[85vw] sm:w-80 shrink-0 h-full flex flex-col cursor-grab active:cursor-grabbing transition-all duration-200 snap-center ${isDragging
           ? "opacity-50 scale-105 ring-2 ring-white/50"
           : isHighlighted
-          ? "scale-[1.03] ring-4 ring-primary shadow-2xl bg-primary/10 animate-[pulse_1.5s_cubic-bezier(0.4,0,0.6,1)_2]"
-          : ""
-      }`}
+            ? "scale-[1.03] ring-4 ring-primary shadow-2xl bg-primary/10 animate-[pulse_1.5s_cubic-bezier(0.4,0,0.6,1)_2]"
+            : ""
+        }`}
     >
-      <div 
+      <div
         className="mb-3 flex items-center gap-2 px-2"
       >
         <GripVertical className="h-4 w-4 text-white/70" />
@@ -111,14 +110,13 @@ export const KanbanColumn = ({
         </Button>
       </div>
 
-      <SortableContext items={list.cards.map((c) => c.id)} strategy={verticalListSortingStrategy}>
+      <SortableContext items={(Array.isArray(list.cards) ? list.cards : []).map((c) => c.id)} strategy={verticalListSortingStrategy}>
         <div
-          className={`min-h-[200px] flex-1 overflow-y-auto rounded-xl p-3 backdrop-blur-sm transition-all duration-300 ${
-            isOver ? "bg-white/25 ring-2 ring-white/50 scale-[1.02]" : "bg-black/10"
-          }`}
+          className={`min-h-[200px] flex-1 overflow-y-auto rounded-xl p-3 backdrop-blur-sm transition-all duration-300 ${isOver ? "bg-white/25 ring-2 ring-white/50 scale-[1.02]" : "bg-black/10"
+            }`}
         >
           <div className="space-y-3">
-            {list.cards.map((card) => (
+            {(Array.isArray(list.cards) ? list.cards : []).map((card) => (
               <KanbanCard
                 key={card.id}
                 card={card}

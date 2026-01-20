@@ -38,17 +38,17 @@ export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(
       transition: transition || "transform 200ms cubic-bezier(0.25, 0.1, 0.25, 1)",
     };
 
-    const completedChecklist = card.checklist?.filter((item) => item.completed).length || 0;
-    const totalChecklist = card.checklist?.length || 0;
+    const checklist = Array.isArray(card.checklist) ? card.checklist : [];
+    const completedChecklist = checklist.filter((item) => item.completed).length;
+    const totalChecklist = checklist.length;
 
     return (
       <div
         ref={setRefs}
         style={style}
         onClick={onClick}
-        className={`group cursor-pointer rounded-lg bg-white p-3 shadow-sm transition-all duration-200 hover:shadow-md ${
-          isDragging ? "ring-2 ring-primary/80 shadow-lg scale-[1.02]" : ""
-        }`}
+        className={`group cursor-pointer rounded-lg bg-white p-3 shadow-sm transition-all duration-200 hover:shadow-md ${isDragging ? "ring-2 ring-primary/80 shadow-lg scale-[1.02]" : ""
+          }`}
       >
         {card.coverImage && (
           <img
@@ -60,7 +60,7 @@ export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(
 
         {card.tags && card.tags.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-1">
-            {card.tags.map((tag) => (
+            {(card.tags || []).map((tag) => (
               <span
                 key={tag.id}
                 className="rounded px-2 py-1 text-xs font-medium text-white"
@@ -124,11 +124,10 @@ export const KanbanCard = forwardRef<HTMLDivElement, KanbanCardProps>(
 
             {card.checklist && card.checklist.length > 0 && (
               <div
-                className={`flex items-center gap-1 rounded px-2 py-0.5 text-xs ${
-                  completedChecklist === totalChecklist
+                className={`flex items-center gap-1 rounded px-2 py-0.5 text-xs ${completedChecklist === totalChecklist
                     ? "bg-green-500/10 text-green-600"
                     : "bg-muted text-muted-foreground"
-                }`}
+                  }`}
               >
                 <CheckSquare className="h-3 w-3" />
                 <span>

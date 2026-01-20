@@ -547,7 +547,7 @@ export const CardDetailsDialog = ({
     })
   );
 
-  const checklist = card.checklist || [];
+  const checklist = Array.isArray(card.checklist) ? card.checklist : [];
   const completedCount = checklist.filter((item) => item.completed).length;
   const totalCount = checklist.length;
   const progress = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
@@ -798,7 +798,7 @@ export const CardDetailsDialog = ({
 
   // Filter functions
   const safeMembers = card.members || [];
-  const safeBoardMembers = boardMembers || [];
+  const safeBoardMembers = Array.isArray(boardMembers) ? boardMembers : [];
 
   const availableMembers = safeBoardMembers.filter(
     (member) => !safeMembers.some((m) => m ? m.id === member.id : false)
@@ -808,11 +808,11 @@ export const CardDetailsDialog = ({
     member.name ? member.name.toLowerCase().includes(memberSearch.toLowerCase()) : false
   );
 
-  const filteredTags = (availableTags || []).filter((tag) =>
+  const filteredTags = (Array.isArray(availableTags) ? availableTags : []).filter((tag) =>
     tag.name ? tag.name.toLowerCase().includes(labelSearch.toLowerCase()) : false
   );
 
-  const targetLists = (availableLists || []).filter((list) => list.id !== card.listId);
+  const targetLists = (Array.isArray(availableLists) ? availableLists : []).filter((list) => list.id !== card.listId);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -859,11 +859,11 @@ export const CardDetailsDialog = ({
               {/* Labels, Members, Due Date */}
               <div className="flex flex-wrap gap-4 mt-4">
                 {/* Labels */}
-                {card.tags.length > 0 && (
+                {(card.tags || []).length > 0 && (
                   <div>
                     <Label className="text-xs font-semibold mb-2 block">Labels</Label>
                     <div className="flex flex-wrap gap-1">
-                      {card.tags.map((tag) => (
+                      {(card.tags || []).map((tag) => (
                         <span
                           key={tag.id}
                           className="rounded px-3 py-1 text-sm font-medium text-white cursor-pointer hover:opacity-80"
@@ -878,11 +878,11 @@ export const CardDetailsDialog = ({
                 )}
 
                 {/* Members */}
-                {card.members.length > 0 && (
+                {(card.members || []).length > 0 && (
                   <div>
                     <Label className="text-xs font-semibold mb-2 block">Members</Label>
                     <div className="flex -space-x-2">
-                      {card.members.map((member) => (
+                      {(card.members || []).map((member) => (
                         <Avatar
                           key={member.id}
                           className="h-8 w-8 border-2 border-background cursor-pointer hover:scale-110 transition-transform"
@@ -987,7 +987,7 @@ export const CardDetailsDialog = ({
             </div>
 
             {/* Attachments */}
-            {card.attachments && card.attachments.length > 0 && (
+            {(card.attachments || []).length > 0 && (
               <div className="mb-6">
                 <div className="flex items-center gap-2 mb-3">
                   <Paperclip className="h-5 w-5 text-muted-foreground" />
@@ -1003,7 +1003,7 @@ export const CardDetailsDialog = ({
                     strategy={verticalListSortingStrategy}
                   >
                     <div className="grid grid-cols-1 gap-3">
-                      {card.attachments.map((attachment) => (
+                      {(card.attachments || []).map((attachment) => (
                         <SortableAttachment
                           key={attachment.id}
                           attachment={attachment}
@@ -1026,9 +1026,9 @@ export const CardDetailsDialog = ({
                 <MessageSquare className="h-5 w-5 text-muted-foreground" />
                 <Label className="font-semibold">Comentários</Label>
               </div>
-              {card.comments && card.comments.length > 0 && (
+              {(card.comments || []).length > 0 && (
                 <div className="mb-4 space-y-3">
-                  {card.comments.map((comment) => (
+                  {(card.comments || []).map((comment) => (
                     <div key={comment.id} className="flex gap-3">
                       <Avatar className="h-8 w-8">
                         <AvatarFallback>{comment.authorAvatar}</AvatarFallback>

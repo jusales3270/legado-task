@@ -4,7 +4,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { db } from "./db";
+import { db } from "./db.js";
 import {
   users,
   clientSubmissions,
@@ -21,10 +21,10 @@ import {
   cardComments,
   activityLog,
   boardMembers
-} from "@shared/schema";
+} from "../shared/schema.js";
 import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import bcrypt from "bcryptjs";
-import { uploadFile, getFileUrl, deleteFile } from "./supabase";
+
 import os from "os";
 
 const app = express();
@@ -407,6 +407,153 @@ export function registerRoutes(app: Express): Server {
       res.json({ ...board, lists: boardLists, cards: boardCards });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch board details" });
+    }
+  });
+
+  // ========== LISTS API ==========
+
+  // Create List
+  app.post("/api/lists", async (req: Request, res: Response) => {
+    try {
+      const { boardId, title, position, color } = req.body;
+
+      const [list] = await db
+        .insert(lists)
+        .values({
+          boardId,
+          title,
+          position: position || 0,
+          color,
+        })
+        .returning();
+
+      res.json(list);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to create list" });
+    }
+  });
+
+  // Update List
+  app.put("/api/lists/:id", async (req: Request, res: Response) => {
+    try {
+      const listId = parseInt(req.params.id);
+      const { title, position, color, isArchived } = req.body;
+
+      // Extract only defined fields to avoid overwriting with undefined
+      const updates: any = {};
+      if (title !== undefined) updates.title = title;
+      if (position !== undefined) updates.position = position;
+      if (color !== undefined) updates.color = color;
+      if (isArchived !== undefined) updates.isArchived = isArchived;
+
+      const [updatedList] = await db
+        .update(lists)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(lists.id, listId))
+        .returning();
+
+      res.json(updatedList);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update list" });
+    }
+  });
+
+  // Delete List
+  app.delete("/api/lists/:id", async (req: Request, res: Response) => {
+    try {
+      const listId = parseInt(req.params.id);
+      await db.delete(lists).where(eq(lists.id, listId));
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete list" });
+    }
+  });
+
+  // ========== CARDS API ==========
+
+  // Create Card
+  app.post("/api/cards", async (req: Request, res: Response) => {
+    try {
+      const { listId, title, description, position, priority, dueDate, coverImage, memberIds, tagIds } = req.body;
+
+      // 1. Create the card
+      const [card] = await db
+        .insert(cards)
+        .values({
+          listId,
+          title,
+          description,
+          position: position || 0,
+          priority: priority || "medium",
+          dueDate: dueDate ? new Date(dueDate) : null,
+          coverImage,
+        })
+        .returning();
+
+      // 2. Add members if provided
+      if (memberIds && Array.isArray(memberIds) && memberIds.length > 0) {
+        await db.insert(cardMembers).values(
+          memberIds.map((userId: number) => ({
+            cardId: card.id,
+            userId,
+          }))
+        );
+      }
+
+      // 3. Add tags if provided
+      if (tagIds && Array.isArray(tagIds) && tagIds.length > 0) {
+        await db.insert(cardTags).values(
+          tagIds.map((tagId: number) => ({
+            cardId: card.id,
+            tagId,
+          }))
+        );
+      }
+
+      res.json(card);
+    } catch (error) {
+      console.error("Create card error:", error);
+      res.status(500).json({ error: "Failed to create card" });
+    }
+  });
+
+  // Update Card
+  app.put("/api/cards/:id", async (req: Request, res: Response) => {
+    try {
+      const cardId = parseInt(req.params.id);
+      const { listId, title, description, position, priority, dueDate, coverImage, isArchived } = req.body;
+
+      const updates: any = {};
+      if (listId !== undefined) updates.listId = listId;
+      if (title !== undefined) updates.title = title;
+      if (description !== undefined) updates.description = description;
+      if (position !== undefined) updates.position = position;
+      if (priority !== undefined) updates.priority = priority;
+      if (dueDate !== undefined) updates.dueDate = dueDate ? new Date(dueDate) : null;
+      if (coverImage !== undefined) updates.coverImage = coverImage;
+      if (isArchived !== undefined) updates.isArchived = isArchived;
+
+      const [updatedCard] = await db
+        .update(cards)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(cards.id, cardId))
+        .returning();
+
+      res.json(updatedCard);
+    } catch (error) {
+      console.error("Update card error:", error);
+      res.status(500).json({ error: "Failed to update card" });
+    }
+  });
+
+  // Delete Card
+  app.delete("/api/cards/:id", async (req: Request, res: Response) => {
+    try {
+      const cardId = parseInt(req.params.id);
+      await db.delete(cards).where(eq(cards.id, cardId));
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to delete card" });
     }
   });
 

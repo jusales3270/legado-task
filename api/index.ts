@@ -4,7 +4,7 @@ export default async function handler(req: Request, res: Response) {
     try {
         console.log("Dynamically loading server/index.ts...");
         // Use dynamic import to catch initialization errors
-        const module = await import('../server/index');
+        const module = await import('../server/index.js');
         const app = module.app;
 
         // Forward the request to the express app

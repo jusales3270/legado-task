@@ -1,0 +1,181 @@
+-- Enable UUID extension if not enabled
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- USERS
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(255) NOT NULL UNIQUE,
+  password VARCHAR(255),
+  name VARCHAR(255) NOT NULL,
+  role VARCHAR(50) NOT NULL DEFAULT 'client',
+  profile_photo TEXT,
+  phone VARCHAR(50),
+  company VARCHAR(255),
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  last_login_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- CLIENT SUBMISSIONS
+CREATE TABLE IF NOT EXISTS client_submissions (
+  id SERIAL PRIMARY KEY,
+  client_id INTEGER NOT NULL REFERENCES users(id),
+  title VARCHAR(500),
+  urgency VARCHAR(20) NOT NULL DEFAULT 'normal',
+  requested_due_date DATE,
+  notes TEXT,
+  status VARCHAR(50) NOT NULL DEFAULT 'pendente',
+  admin_notes TEXT,
+  assigned_board_id INTEGER,
+  assigned_card_id INTEGER,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- SUBMISSION ATTACHMENTS
+CREATE TABLE IF NOT EXISTS submission_attachments (
+  id SERIAL PRIMARY KEY,
+  submission_id INTEGER NOT NULL REFERENCES client_submissions(id) ON DELETE CASCADE,
+  file_name VARCHAR(500) NOT NULL,
+  file_url TEXT NOT NULL,
+  thumbnail_url TEXT,
+  file_type VARCHAR(50) NOT NULL DEFAULT 'other',
+  file_size INTEGER,
+  mime_type VARCHAR(100),
+  duration_seconds INTEGER,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- BOARDS
+CREATE TABLE IF NOT EXISTS boards (
+  id SERIAL PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  owner_id INTEGER NOT NULL REFERENCES users(id),
+  color VARCHAR(50),
+  is_favorite BOOLEAN NOT NULL DEFAULT FALSE,
+  is_archived BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- BOARD MEMBERS
+CREATE TABLE IF NOT EXISTS board_members (
+  id SERIAL PRIMARY KEY,
+  board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role VARCHAR(50) NOT NULL DEFAULT 'member',
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- LISTS
+CREATE TABLE IF NOT EXISTS lists (
+  id SERIAL PRIMARY KEY,
+  board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
+  color VARCHAR(50),
+  is_archived BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- CARDS
+CREATE TABLE IF NOT EXISTS cards (
+  id SERIAL PRIMARY KEY,
+  list_id INTEGER NOT NULL REFERENCES lists(id) ON DELETE CASCADE,
+  submission_id INTEGER REFERENCES client_submissions(id),
+  title VARCHAR(500) NOT NULL,
+  description TEXT,
+  position INTEGER NOT NULL DEFAULT 0,
+  due_date DATE,
+  priority VARCHAR(20),
+  cover_image TEXT,
+  is_archived BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- CARD MEMBERS
+CREATE TABLE IF NOT EXISTS card_members (
+  id SERIAL PRIMARY KEY,
+  card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- TAGS
+CREATE TABLE IF NOT EXISTS tags (
+  id SERIAL PRIMARY KEY,
+  board_id INTEGER NOT NULL REFERENCES boards(id) ON DELETE CASCADE,
+  name VARCHAR(100) NOT NULL,
+  color VARCHAR(50) NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- CARD TAGS
+CREATE TABLE IF NOT EXISTS card_tags (
+  id SERIAL PRIMARY KEY,
+  card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  tag_id INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- CARD ATTACHMENTS
+CREATE TABLE IF NOT EXISTS card_attachments (
+  id SERIAL PRIMARY KEY,
+  card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  file_name VARCHAR(500) NOT NULL,
+  file_url TEXT NOT NULL,
+  thumbnail_url TEXT,
+  file_type VARCHAR(50) NOT NULL DEFAULT 'other',
+  file_size INTEGER,
+  mime_type VARCHAR(100),
+  uploaded_by INTEGER REFERENCES users(id),
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- CARD CHECKLISTS
+CREATE TABLE IF NOT EXISTS card_checklists (
+  id SERIAL PRIMARY KEY,
+  card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- CHECKLIST ITEMS
+CREATE TABLE IF NOT EXISTS checklist_items (
+  id SERIAL PRIMARY KEY,
+  checklist_id INTEGER NOT NULL REFERENCES card_checklists(id) ON DELETE CASCADE,
+  text VARCHAR(500) NOT NULL,
+  is_completed BOOLEAN NOT NULL DEFAULT FALSE,
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- CARD COMMENTS
+CREATE TABLE IF NOT EXISTS card_comments (
+  id SERIAL PRIMARY KEY,
+  card_id INTEGER NOT NULL REFERENCES cards(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  content TEXT NOT NULL,
+  is_internal BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- ACTIVITY LOG
+CREATE TABLE IF NOT EXISTS activity_log (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER REFERENCES users(id),
+  entity_type VARCHAR(50) NOT NULL,
+  entity_id INTEGER NOT NULL,
+  action VARCHAR(100) NOT NULL,
+  details TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+-- Insert minimal required data (Example)
+INSERT INTO users (email, name, role) VALUES ('admin@admin.com', 'Admin', 'admin') ON CONFLICT DO NOTHING;
