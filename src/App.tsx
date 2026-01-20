@@ -17,27 +17,44 @@ const queryClient = new QueryClient();
 
 function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode; requiredRole?: string }) {
   const userStr = localStorage.getItem("user");
-  
+
   if (!userStr) {
     return <Navigate to="/login" replace />;
   }
-  
-  const user = JSON.parse(userStr);
-  
-  if (requiredRole && user.role !== requiredRole) {
-    return <Navigate to={user.role === "admin" ? "/kanban" : "/client-portal"} replace />;
+
+  try {
+    const user = JSON.parse(userStr);
+
+    // Safety check: if user has no role, force logout to prevent infinite loops
+    if (!user.role) {
+      console.error("User object missing role, forcing logout");
+      localStorage.removeItem("user");
+      return <Navigate to="/login" replace />;
+    }
+
+    if (requiredRole && user.role !== requiredRole) {
+      // Prevent redirect loop: if we are already at the target path, logout instead
+      const targetPath = user.role === "admin" ? "/kanban" : "/client-portal";
+      if (location.pathname === targetPath) {
+        return <>{children}</>; // Or handle mismatch differently
+      }
+      return <Navigate to={targetPath} replace />;
+    }
+
+    return <>{children}</>;
+  } catch (e) {
+    localStorage.removeItem("user");
+    return <Navigate to="/login" replace />;
   }
-  
-  return <>{children}</>;
 }
 
 function AuthRedirect() {
   const userStr = localStorage.getItem("user");
-  
+
   if (!userStr) {
     return <Navigate to="/login" replace />;
   }
-  
+
   const user = JSON.parse(userStr);
   return <Navigate to={user.role === "admin" ? "/kanban" : "/client-portal"} replace />;
 }
@@ -52,13 +69,13 @@ const App = () => (
           <Routes>
             <Route path="/" element={<AuthRedirect />} />
             <Route path="/login" element={<Login />} />
-            
+
             <Route path="/client-portal" element={
               <ProtectedRoute requiredRole="client">
                 <ClientPortal />
               </ProtectedRoute>
             } />
-            
+
             <Route path="/kanban" element={
               <ProtectedRoute requiredRole="admin">
                 <AllBoards />
@@ -84,7 +101,7 @@ const App = () => (
                 <BoardCalendarView />
               </ProtectedRoute>
             } />
-            
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
