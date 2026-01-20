@@ -1,138 +1,145 @@
-import type { Express, Request, Response } from "express";
+import express, { type Request, type Response, type NextFunction } from "express";
+import { type Express } from "express";
+import { createServer, type Server } from "http";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import os from "os";
-import bcrypt from "bcryptjs";
-import { exec } from "child_process";
 import { db } from "./db";
-import { users, tasks, clientSubmissions, submissionAttachments, boards, lists, cards } from "../shared/schema";
-import { eq, desc, sql } from "drizzle-orm";
-import { supabase, STORAGE_BUCKET, ensureBucketExists } from "./supabase";
+import {
+  users,
+  clientSubmissions,
+  submissionAttachments,
+  boards,
+  lists,
+  cards,
+  tags,
+  cardTags,
+  cardMembers,
+  cardAttachments,
+  cardChecklists,
+  checklistItems,
+  cardComments,
+  activityLog,
+  boardMembers
+} from "@shared/schema";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import bcrypt from "bcryptjs";
+import { uploadFile, getFileUrl, deleteFile } from "./supabase";
+import os from "os";
 
-const uploadDir = process.env.VERCEL
-  ? path.join(os.tmpdir(), "uploads")
-  : path.join(process.cwd(), "uploads");
+const app = express();
+app.use(express.json());
 
-try {
-  if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
+export function registerRoutes(app: Express): Server {
+  // Use /tmp for Vercel, process.cwd() for local
+  const isVercel = process.env.VERCEL === '1';
+  const uploadDir = isVercel ? path.join(os.tmpdir(), "uploads") : path.join(process.cwd(), "uploads");
+  const chunksDir = isVercel ? path.join(os.tmpdir(), "chunks") : path.join(process.cwd(), "chunks");
+
+  // Ensure directories exist
+  try {
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+    if (!fs.existsSync(chunksDir)) fs.mkdirSync(chunksDir, { recursive: true });
+  } catch (err) {
+    console.error("Failed to create directories:", err);
   }
-} catch (error) {
-  console.error("Failed to create upload directory:", error);
-}
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
-    const ext = path.extname(file.originalname);
-    cb(null, `${uniqueSuffix}${ext}`);
-  },
-});
-
-const upload = multer({
-  storage,
-  limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2GB limit for large video files
-});
-
-export async function registerRoutes(app: Express): Promise<void> {
-  // Health check
-  app.get("/api/health", (_req: Request, res: Response) => {
-    res.json({ status: "ok" });
+  // Multer configuration
+  const storage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadDir),
+    filename: (_req, file, cb) => {
+      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+      cb(null, uniqueSuffix + "-" + file.originalname);
+    },
   });
 
-  // Diagnostics and Auto-Repair
-  app.get("/api/diagnostics", async (_req: Request, res: Response) => {
-    const report: any = {
-      timestamp: new Date().toISOString(),
-      env: {
-        nodeEnv: process.env.NODE_ENV,
-        hasDatabaseUrl: !!process.env.DATABASE_URL,
-        hasSupabaseUrl: !!process.env.SUPABASE_URL,
-        vercel: process.env.VERCEL,
-      },
-      checks: {},
-    };
+  const upload = multer({ storage });
 
+  // Add diagnostics endpoint early
+  app.get("/api/diagnostics", async (_req, res) => {
     try {
-      // 1. Check DB Connection
-      const start = Date.now();
-      const [result] = await db.execute(sql`SELECT 1 as connected`);
-      report.checks.database = {
-        status: "ok",
-        latency: Date.now() - start,
-        result,
+      const result = {
+        db: false,
+        usersTable: false,
+        adminUser: false,
+        adminFixed: false,
+        message: "",
+        env: process.env.NODE_ENV
       };
 
-      // 2. Check Users Table & Admin
-      const adminEmail = "admin@demo.com";
-      const usersList = await db.select().from(users).limit(5);
-      const admin = await db.select().from(users).where(eq(users.email, adminEmail));
-
-      report.checks.usersTable = {
-        count: usersList.length,
-        hasAdmin: admin.length > 0,
-      };
-
-      // 3. Auto-Seed Admin if missing
-      if (admin.length === 0) {
-        const hashedPassword = await bcrypt.hash("1234", 10);
-        const [newAdmin] = await db.insert(users).values({
-          email: adminEmail,
-          password: hashedPassword,
-          name: "Admin Demo",
-          role: "admin",
-          isActive: true,
-        }).returning();
-
-        report.checks.seeding = {
-          status: "success",
-          message: "Admin user created",
-          user: newAdmin.email,
-        };
-      } else {
-        report.checks.seeding = {
-          status: "skipped",
-          message: "Admin user already exists",
-        };
+      // Check DB connection
+      try {
+        await db.execute(sql`SELECT 1`);
+        result.db = true;
+      } catch (e: any) {
+        result.message = `DB Connection Error: ${e.message}`;
+        return res.json(result);
       }
 
-      res.json(report);
+      // Check users table
+      try {
+        await db.select().from(users).limit(1);
+        result.usersTable = true;
+      } catch (e: any) {
+        result.message = `Users Table Error: ${e.message}`;
+        return res.json(result);
+      }
+
+      // Check/Fix Admin User
+      const [admin] = await db.select().from(users).where(eq(users.email, "admin@demo.com"));
+      if (admin) {
+        result.adminUser = true;
+        // Verify if password needs reset (always reset to be safe)
+        const hashedPassword = await bcrypt.hash("1234", 10);
+        await db.update(users)
+          .set({ password: hashedPassword, role: "admin", isActive: true })
+          .where(eq(users.email, "admin@demo.com"));
+        result.adminFixed = true;
+        result.message = "Admin password reset to '1234' (Node bcrypt).";
+      } else {
+        // Create admin if missing
+        const hashedPassword = await bcrypt.hash("1234", 10);
+        await db.insert(users).values({
+          email: "admin@demo.com",
+          password: hashedPassword,
+          name: "Administrador",
+          role: "admin",
+          isActive: true
+        });
+        result.adminUser = true;
+        result.adminFixed = true;
+        result.message = "Admin user created.";
+      }
+
+      res.json(result);
     } catch (error: any) {
-      console.error("Diagnostic failed:", error);
-      report.error = {
-        message: error.message,
-        stack: error.stack,
-      };
-      // Return 200 even on error to see the report in JSON
-      res.json(report);
+      console.error("Diagnostics error:", error);
+      res.status(500).json({ error: error.message });
     }
   });
 
-  // ===== AUTHENTICATION ROUTES =====
+  app.get("/api/basic", (_req, res) => {
+    res.json({ message: "Basic serverless function working!", timestamp: new Date().toISOString(), env: process.env.NODE_ENV || "development" });
+  });
 
-  // Register new user
+  // Client Registration (Create passwordless account)
   app.post("/api/auth/register", async (req: Request, res: Response) => {
     try {
-      const { email, password, name, role = "client" } = req.body;
+      const { email, name, role = "client" } = req.body;
 
-      if (!email || !password || !name) {
-        return res.status(400).json({ error: "Email, password, and name are required" });
+      if (!email || !name) {
+        return res.status(400).json({ error: "Email and name are required" });
       }
 
-      // Check if user already exists
-      const existingUser = await db.select().from(users).where(eq(users.email, email));
-      if (existingUser.length > 0) {
-        return res.status(400).json({ error: "User already exists" });
+      const [existingUser] = await db.select().from(users).where(eq(users.email, email));
+      if (existingUser) {
+        return res.status(400).json({ error: "Email already exists" });
       }
 
-      // Hash password
-      const hashedPassword = await bcrypt.hash(password, 10);
+      // Generate random password for client (they will use email-only login)
+      const randomPassword = Math.random().toString(36).slice(-8);
+      const hashedPassword = await bcrypt.hash(randomPassword, 10);
 
-      // Create user
       const [newUser] = await db
         .insert(users)
         .values({
@@ -177,6 +184,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       if (!user.password) {
         return res.status(401).json({ error: "Invalid credentials" });
       }
+
       const isValid = await bcrypt.compare(password, user.password);
       if (!isValid) {
         return res.status(401).json({ error: "Invalid credentials" });
@@ -259,961 +267,149 @@ export async function registerRoutes(app: Express): Promise<void> {
       });
     } catch (error) {
       console.error("Client login error:", error);
-      res.status(500).json({ error: "Falha no acesso" });
+      res.status(500).json({ error: error.message || "Falha no acesso" });
     }
   });
 
-  // ===== TASK ROUTES =====
+  // ========== CLIENT SUBMISSIONS ==========
 
-  // Create task (client submission)
-  app.post("/api/tasks", async (req: Request, res: Response) => {
+  // Create Submission (with chunked upload support)
+  app.post("/api/submissions", async (req: Request, res: Response) => {
     try {
-      const { clientId, fileUrl, fileName, fileSize, urgency, dueDate, description } = req.body;
-
-      if (!fileUrl) {
-        return res.status(400).json({ error: "File URL is required" });
-      }
+      const { clientId, title, urgency, requestedDueDate, notes, chunkedFiles } = req.body;
 
       if (!clientId) {
-        return res.status(400).json({ error: "Client ID is required" });
-      }
-
-      // Validate that the client exists
-      const [client] = await db.select().from(users).where(eq(users.id, clientId));
-      if (!client) {
-        return res.status(404).json({ error: "Client not found" });
-      }
-
-      const [newTask] = await db
-        .insert(tasks)
-        .values({
-          clientId: parseInt(clientId),
-          fileUrl,
-          fileName,
-          fileSize,
-          urgency: urgency || "Normal",
-          dueDate: dueDate || null,
-          status: "Inbox",
-          description,
-        })
-        .returning();
-
-      res.json(newTask);
-    } catch (error) {
-      console.error("Create task error:", error);
-      res.status(500).json({ error: "Failed to create task" });
-    }
-  });
-
-  // Get all tasks (for admin)
-  app.get("/api/tasks", async (_req: Request, res: Response) => {
-    try {
-      const allTasks = await db.select().from(tasks);
-      res.json(allTasks);
-    } catch (error) {
-      console.error("Get tasks error:", error);
-      res.status(500).json({ error: "Failed to get tasks" });
-    }
-  });
-
-  // Get tasks by client
-  app.get("/api/tasks/client/:clientId", async (req: Request, res: Response) => {
-    try {
-      const clientId = parseInt(req.params.clientId);
-      const clientTasks = await db.select().from(tasks).where(eq(tasks.clientId, clientId));
-      res.json(clientTasks);
-    } catch (error) {
-      console.error("Get client tasks error:", error);
-      res.status(500).json({ error: "Failed to get client tasks" });
-    }
-  });
-
-  // Update task status (when admin adds to board)
-  app.patch("/api/tasks/:id", async (req: Request, res: Response) => {
-    try {
-      const taskId = parseInt(req.params.id);
-      const { status } = req.body;
-
-      const [updatedTask] = await db
-        .update(tasks)
-        .set({ status, updatedAt: new Date() })
-        .where(eq(tasks.id, taskId))
-        .returning();
-
-      if (!updatedTask) {
-        return res.status(404).json({ error: "Task not found" });
-      }
-
-      res.json(updatedTask);
-    } catch (error) {
-      console.error("Update task error:", error);
-      res.status(500).json({ error: "Failed to update task" });
-    }
-  });
-
-  // ===== USER ROUTES =====
-
-  // Get all users (for admin to see client names)
-  app.get("/api/users", async (_req: Request, res: Response) => {
-    try {
-      const allUsers = await db.select({
-        id: users.id,
-        name: users.name,
-        email: users.email,
-        role: users.role,
-        profilePhoto: users.profilePhoto,
-      }).from(users);
-      res.json(allUsers);
-    } catch (error) {
-      console.error("Get users error:", error);
-      res.status(500).json({ error: "Failed to get users" });
-    }
-  });
-
-  // Get single user by ID
-  app.get("/api/users/:id", async (req: Request, res: Response) => {
-    try {
-      const userId = parseInt(req.params.id);
-      const [user] = await db.select({
-        id: users.id,
-        name: users.name,
-        email: users.email,
-        role: users.role,
-        profilePhoto: users.profilePhoto,
-      }).from(users).where(eq(users.id, userId));
-
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-      res.json(user);
-    } catch (error) {
-      console.error("Get user error:", error);
-      res.status(500).json({ error: "Failed to get user" });
-    }
-  });
-
-  // Update user profile (name and/or profile photo)
-  app.patch("/api/users/:id", async (req: Request, res: Response) => {
-    try {
-      const userId = parseInt(req.params.id);
-      const { name, profilePhoto } = req.body;
-
-      const updateData: { name?: string; profilePhoto?: string; updatedAt: Date } = {
-        updatedAt: new Date(),
-      };
-
-      if (name) updateData.name = name;
-      if (profilePhoto !== undefined) updateData.profilePhoto = profilePhoto;
-
-      const [updatedUser] = await db
-        .update(users)
-        .set(updateData)
-        .where(eq(users.id, userId))
-        .returning({
-          id: users.id,
-          name: users.name,
-          email: users.email,
-          role: users.role,
-          profilePhoto: users.profilePhoto,
-        });
-
-      if (!updatedUser) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      res.json(updatedUser);
-    } catch (error) {
-      console.error("Update user error:", error);
-      res.status(500).json({ error: "Failed to update user" });
-    }
-  });
-
-  // Change user password
-  app.post("/api/users/:id/change-password", async (req: Request, res: Response) => {
-    try {
-      const userId = parseInt(req.params.id);
-      const { currentPassword, newPassword } = req.body;
-
-      if (!currentPassword || !newPassword) {
-        return res.status(400).json({ error: "Current and new password are required" });
-      }
-
-      if (newPassword.length < 4) {
-        return res.status(400).json({ error: "New password must be at least 4 characters" });
-      }
-
-      // Get user with password
-      const [user] = await db.select().from(users).where(eq(users.id, userId));
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      // Verify current password (user must have a password set)
-      if (!user.password) {
-        return res.status(400).json({ error: "User does not have a password set" });
-      }
-      const isValid = await bcrypt.compare(currentPassword, user.password);
-      if (!isValid) {
-        return res.status(401).json({ error: "Current password is incorrect" });
-      }
-
-      // Hash and update new password
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-      await db
-        .update(users)
-        .set({ password: hashedPassword, updatedAt: new Date() })
-        .where(eq(users.id, userId));
-
-      res.json({ success: true, message: "Password updated successfully" });
-    } catch (error) {
-      console.error("Change password error:", error);
-      res.status(500).json({ error: "Failed to change password" });
-    }
-  });
-
-  // Upload profile photo
-  app.post("/api/users/:id/upload-photo", upload.single("photo"), async (req: Request, res: Response) => {
-    try {
-      const userId = parseInt(req.params.id);
-
-      if (!req.file) {
-        return res.status(400).json({ error: "No photo uploaded" });
-      }
-
-      const photoUrl = `/uploads/${req.file.filename}`;
-
-      const [updatedUser] = await db
-        .update(users)
-        .set({ profilePhoto: photoUrl, updatedAt: new Date() })
-        .where(eq(users.id, userId))
-        .returning({
-          id: users.id,
-          name: users.name,
-          email: users.email,
-          role: users.role,
-          profilePhoto: users.profilePhoto,
-        });
-
-      if (!updatedUser) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      res.json(updatedUser);
-    } catch (error) {
-      console.error("Upload photo error:", error);
-      res.status(500).json({ error: "Failed to upload photo" });
-    }
-  });
-
-  // ===== FILE UPLOAD ROUTES =====
-
-  // Helper function to generate video thumbnail
-  const generateVideoThumbnail = async (videoPath: string, thumbnailPath: string): Promise<boolean> => {
-    return new Promise((resolve) => {
-      const command = `ffmpeg -i "${videoPath}" -ss 00:00:01 -vframes 1 -vf "scale=320:-1" -y "${thumbnailPath}"`;
-
-      exec(command, (error) => {
-        if (error) {
-          console.error("FFmpeg error:", error.message);
-          resolve(false);
-        } else {
-          resolve(true);
-        }
-      });
-    });
-  };
-
-  // File upload endpoint
-  app.post("/api/upload", upload.single("file"), async (req: Request, res: Response) => {
-    if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
-    }
-
-    const publicUrl = `/uploads/${req.file.filename}`;
-    let thumbnailUrl: string | undefined;
-
-    // Check if file is a video and generate thumbnail
-    const isVideo = req.file.mimetype.startsWith("video/");
-    if (isVideo) {
-      const thumbnailFilename = `thumb_${req.file.filename.replace(/\.[^.]+$/, ".jpg")}`;
-      const thumbnailPath = path.join(uploadDir, thumbnailFilename);
-      const videoPath = path.join(uploadDir, req.file.filename);
-
-      const success = await generateVideoThumbnail(videoPath, thumbnailPath);
-      if (success && fs.existsSync(thumbnailPath)) {
-        thumbnailUrl = `/uploads/${thumbnailFilename}`;
-      }
-    }
-
-    res.json({
-      url: publicUrl,
-      name: req.file.originalname,
-      size: req.file.size,
-      type: req.file.mimetype,
-      thumbnailUrl,
-    });
-  });
-
-  // Serve uploaded files
-  app.use("/uploads", (req: Request, res: Response, next) => {
-    const filePath = path.join(uploadDir, req.path);
-    if (fs.existsSync(filePath)) {
-      res.sendFile(filePath);
-    } else {
-      res.status(404).json({ error: "File not found" });
-    }
-  });
-
-  // Delete file endpoint
-  app.delete("/api/upload/:filename", (req: Request, res: Response) => {
-    const filePath = path.join(uploadDir, req.params.filename);
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-      res.json({ success: true });
-    } else {
-      res.status(404).json({ error: "File not found" });
-    }
-  });
-
-  // ===== CLIENT SUBMISSIONS ROUTES =====
-
-  // Create a new client submission
-  app.post("/api/client-submissions", async (req: Request, res: Response) => {
-    try {
-      const { clientId, title, urgency, requestedDueDate, notes } = req.body;
-
-      if (!clientId) {
-        return res.status(400).json({ error: "Client ID é obrigatório" });
+        return res.status(400).json({ error: "Client ID required" });
       }
 
       const [submission] = await db
         .insert(clientSubmissions)
         .values({
-          clientId: parseInt(clientId),
-          title: title || "Novo envio",
+          clientId,
+          title: title || "Sem título",
           urgency: urgency || "normal",
-          requestedDueDate: requestedDueDate || null,
-          notes: notes || null,
+          requestedDueDate: requestedDueDate ? new Date(requestedDueDate) : null,
+          notes,
           status: "pendente",
         })
         .returning();
 
+      if (chunkedFiles && chunkedFiles.length > 0) {
+        for (const file of chunkedFiles) {
+          await db.insert(submissionAttachments).values({
+            submissionId: submission.id,
+            fileName: file.fileName,
+            fileUrl: file.fileUrl,
+            fileType: file.fileType,
+            fileSize: file.fileSize,
+            mimeType: file.mimeType,
+          });
+        }
+      }
+
       res.json(submission);
     } catch (error) {
-      console.error("Create submission error:", error);
-      res.status(500).json({ error: "Falha ao criar envio" });
+      console.error("Submission error:", error);
+      res.status(500).json({ error: "Failed to create submission" });
     }
   });
 
-  // Get all submissions for a client
-  app.get("/api/client-submissions", async (req: Request, res: Response) => {
+  // Get Client Submissions
+  app.get("/api/clients/:clientId/submissions", async (req: Request, res: Response) => {
     try {
-      const clientId = req.query.clientId as string;
+      const clientId = parseInt(req.params.clientId);
 
-      if (!clientId) {
-        return res.status(400).json({ error: "Client ID é obrigatório" });
-      }
-
-      const submissions = await db
+      const results = await db
         .select()
         .from(clientSubmissions)
-        .where(eq(clientSubmissions.clientId, parseInt(clientId)))
+        .where(eq(clientSubmissions.clientId, clientId))
         .orderBy(desc(clientSubmissions.createdAt));
 
-      res.json(submissions);
+      res.json(results);
     } catch (error) {
-      console.error("Get submissions error:", error);
-      res.status(500).json({ error: "Falha ao buscar envios" });
+      res.status(500).json({ error: "Failed to fetch submissions" });
     }
   });
 
-  // Get all submissions (admin view)
-  app.get("/api/admin/submissions", async (req: Request, res: Response) => {
+  // ========== KANBAN API ==========
+
+  // Get Boards (Admin)
+  app.get("/api/boards", async (req: Request, res: Response) => {
     try {
-      const allSubmissions = await db
-        .select({
-          submission: clientSubmissions,
-          client: {
-            id: users.id,
-            name: users.name,
-            email: users.email,
-          },
-        })
-        .from(clientSubmissions)
-        .leftJoin(users, eq(clientSubmissions.clientId, users.id))
-        .orderBy(desc(clientSubmissions.createdAt));
+      const userId = parseInt(req.query.userId as string);
 
-      const submissionsWithAttachments = await Promise.all(
-        allSubmissions.map(async (item) => {
-          const attachments = await db
-            .select()
-            .from(submissionAttachments)
-            .where(eq(submissionAttachments.submissionId, item.submission.id));
-          return {
-            ...item,
-            attachments,
-          };
-        })
-      );
-
-      res.json(submissionsWithAttachments);
-    } catch (error) {
-      console.error("Get admin submissions error:", error);
-      res.status(500).json({ error: "Falha ao buscar envios" });
-    }
-  });
-
-  // ===== CHUNKED UPLOAD ENDPOINTS =====
-
-  const chunksDir = process.env.VERCEL
-    ? path.join(os.tmpdir(), "chunks")
-    : path.join(process.cwd(), "uploads", "chunks");
-
-  try {
-    if (!fs.existsSync(chunksDir)) {
-      fs.mkdirSync(chunksDir, { recursive: true });
-    }
-  } catch (error) {
-    console.error("Failed to create chunks directory:", error);
-  }
-
-  // Initialize a chunked upload session
-  app.post("/api/chunked-upload/init", async (req: Request, res: Response) => {
-    try {
-      const { fileName, fileSize, mimeType, submissionId } = req.body;
-
-      if (!fileName || !fileSize || !submissionId) {
-        return res.status(400).json({ error: "fileName, fileSize e submissionId são obrigatórios" });
+      if (!userId) {
+        return res.status(400).json({ error: "User ID needed" });
       }
 
-      // Generate a unique upload ID
-      const uploadId = `${Date.now()}-${Math.random().toString(36).substring(7)}`;
-      const uploadSessionDir = path.join(chunksDir, uploadId);
-      fs.mkdirSync(uploadSessionDir, { recursive: true });
-
-      // Store session metadata
-      const sessionData = {
-        uploadId,
-        fileName,
-        fileSize,
-        mimeType: mimeType || "application/octet-stream",
-        submissionId: parseInt(submissionId),
-        uploadedChunks: [] as number[],
-        createdAt: new Date().toISOString(),
-      };
-
-      fs.writeFileSync(
-        path.join(uploadSessionDir, "session.json"),
-        JSON.stringify(sessionData, null, 2)
-      );
-
-      res.json({ uploadId, chunkSize: 10 * 1024 * 1024 }); // 10MB chunks
-    } catch (error) {
-      console.error("Init chunked upload error:", error);
-      res.status(500).json({ error: "Falha ao iniciar upload" });
-    }
-  });
-
-  // Get upload session status (for resuming)
-  app.get("/api/chunked-upload/:uploadId/status", async (req: Request, res: Response) => {
-    try {
-      const { uploadId } = req.params;
-      const sessionPath = path.join(chunksDir, uploadId, "session.json");
-
-      if (!fs.existsSync(sessionPath)) {
-        return res.status(404).json({ error: "Sessão de upload não encontrada" });
-      }
-
-      const sessionData = JSON.parse(fs.readFileSync(sessionPath, "utf-8"));
-      res.json({
-        uploadedChunks: sessionData.uploadedChunks,
-        fileName: sessionData.fileName,
-        fileSize: sessionData.fileSize,
-      });
-    } catch (error) {
-      console.error("Get upload status error:", error);
-      res.status(500).json({ error: "Falha ao buscar status do upload" });
-    }
-  });
-
-  // Upload a single chunk
-  app.put("/api/chunked-upload/:uploadId/chunk/:chunkIndex", upload.single("chunk"), async (req: Request, res: Response) => {
-    try {
-      const { uploadId, chunkIndex } = req.params;
-      const chunkIdx = parseInt(chunkIndex);
-      const sessionDir = path.join(chunksDir, uploadId);
-      const sessionPath = path.join(sessionDir, "session.json");
-
-      if (!fs.existsSync(sessionPath)) {
-        return res.status(404).json({ error: "Sessão de upload não encontrada" });
-      }
-
-      if (!req.file) {
-        return res.status(400).json({ error: "Chunk não enviado" });
-      }
-
-      // Move chunk to session directory
-      const chunkPath = path.join(sessionDir, `chunk_${chunkIdx}`);
-      fs.renameSync(req.file.path, chunkPath);
-
-      // Update session
-      const sessionData = JSON.parse(fs.readFileSync(sessionPath, "utf-8"));
-      if (!sessionData.uploadedChunks.includes(chunkIdx)) {
-        sessionData.uploadedChunks.push(chunkIdx);
-        sessionData.uploadedChunks.sort((a: number, b: number) => a - b);
-      }
-      fs.writeFileSync(sessionPath, JSON.stringify(sessionData, null, 2));
-
-      res.json({
-        success: true,
-        chunkIndex: chunkIdx,
-        uploadedChunks: sessionData.uploadedChunks.length
-      });
-    } catch (error) {
-      console.error("Upload chunk error:", error);
-      res.status(500).json({ error: "Falha ao enviar chunk" });
-    }
-  });
-
-  // Finalize chunked upload - merge chunks and upload to storage
-  app.post("/api/chunked-upload/:uploadId/finalize", async (req: Request, res: Response) => {
-    try {
-      const { uploadId } = req.params;
-      const sessionDir = path.join(chunksDir, uploadId);
-      const sessionPath = path.join(sessionDir, "session.json");
-
-      if (!fs.existsSync(sessionPath)) {
-        return res.status(404).json({ error: "Sessão de upload não encontrada" });
-      }
-
-      const sessionData = JSON.parse(fs.readFileSync(sessionPath, "utf-8"));
-      const { fileName, fileSize, mimeType, submissionId, uploadedChunks } = sessionData;
-
-      // Calculate expected chunks
-      const chunkSize = 10 * 1024 * 1024; // 10MB
-      const expectedChunks = Math.ceil(fileSize / chunkSize);
-
-      if (uploadedChunks.length < expectedChunks) {
-        return res.status(400).json({
-          error: `Upload incompleto: ${uploadedChunks.length}/${expectedChunks} chunks recebidos`
-        });
-      }
-
-      // Merge chunks into final file
-      const ext = path.extname(fileName);
-      const finalFileName = `${Date.now()}-${Math.random().toString(36).substring(7)}${ext}`;
-      const finalPath = path.join(uploadDir, finalFileName);
-
-      const writeStream = fs.createWriteStream(finalPath);
-
-      for (let i = 0; i < expectedChunks; i++) {
-        const chunkPath = path.join(sessionDir, `chunk_${i}`);
-        if (!fs.existsSync(chunkPath)) {
-          writeStream.close();
-          return res.status(400).json({ error: `Chunk ${i} não encontrado` });
-        }
-        const chunkData = fs.readFileSync(chunkPath);
-        writeStream.write(chunkData);
-      }
-
-      await new Promise<void>((resolve) => writeStream.end(resolve));
-
-      // Determine file type
-      let fileType: "video" | "audio" | "image" | "document" | "other" = "other";
-      if (mimeType.startsWith("video/")) fileType = "video";
-      else if (mimeType.startsWith("audio/")) fileType = "audio";
-      else if (mimeType.startsWith("image/")) fileType = "image";
-      else if (mimeType.includes("pdf") || mimeType.includes("document")) fileType = "document";
-
-      let fileUrl: string = `/uploads/${finalFileName}`;
-      let thumbnailUrl: string | undefined;
-
-      // Generate thumbnail for videos
-      if (fileType === "video") {
-        const thumbnailFilename = `thumb_${finalFileName.replace(/\.[^.]+$/, ".jpg")}`;
-        const thumbPath = path.join(uploadDir, thumbnailFilename);
-        const success = await generateVideoThumbnail(finalPath, thumbPath);
-        if (success && fs.existsSync(thumbPath)) {
-          thumbnailUrl = `/uploads/${thumbnailFilename}`;
-        }
-      }
-
-      // Upload to Supabase if available
-      if (supabase) {
-        await ensureBucketExists();
-
-        const timestamp = Date.now();
-        const safeName = fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
-        const storagePath = `submissions/${submissionId}/${timestamp}_${safeName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from(STORAGE_BUCKET)
-          .upload(storagePath, fs.readFileSync(finalPath), {
-            contentType: mimeType,
-          });
-
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage
-            .from(STORAGE_BUCKET)
-            .getPublicUrl(storagePath);
-          fileUrl = urlData.publicUrl;
-
-          // Upload thumbnail to Supabase
-          if (thumbnailUrl && fs.existsSync(path.join(uploadDir, `thumb_${finalFileName.replace(/\.[^.]+$/, ".jpg")}`))) {
-            const thumbFilePath = `submissions/${submissionId}/${timestamp}_thumb_${safeName.replace(/\.[^.]+$/, ".jpg")}`;
-            const thumbLocalPath = path.join(uploadDir, `thumb_${finalFileName.replace(/\.[^.]+$/, ".jpg")}`);
-
-            const { error: thumbUploadError } = await supabase.storage
-              .from(STORAGE_BUCKET)
-              .upload(thumbFilePath, fs.readFileSync(thumbLocalPath), {
-                contentType: "image/jpeg",
-              });
-
-            if (!thumbUploadError) {
-              const { data: thumbUrlData } = supabase.storage
-                .from(STORAGE_BUCKET)
-                .getPublicUrl(thumbFilePath);
-              thumbnailUrl = thumbUrlData.publicUrl;
-              fs.unlinkSync(thumbLocalPath);
-            }
-          }
-
-          // Clean up local file
-          fs.unlinkSync(finalPath);
-        }
-      }
-
-      // Save attachment to database
-      const actualFileSize = fs.existsSync(finalPath) ? fs.statSync(finalPath).size : fileSize;
-      const [attachment] = await db
-        .insert(submissionAttachments)
-        .values({
-          submissionId,
-          fileName,
-          fileUrl,
-          thumbnailUrl,
-          fileType,
-          fileSize: actualFileSize,
-          mimeType,
-        })
-        .returning();
-
-      // Clean up chunk session directory
-      fs.rmSync(sessionDir, { recursive: true, force: true });
-
-      res.json(attachment);
-    } catch (error) {
-      console.error("Finalize chunked upload error:", error);
-      res.status(500).json({ error: "Falha ao finalizar upload" });
-    }
-  });
-
-  // Upload file for a submission (uses Supabase Storage) - legacy single upload
-  app.post("/api/client-submissions/:submissionId/upload", upload.single("file"), async (req: Request, res: Response) => {
-    try {
-      const submissionId = parseInt(req.params.submissionId);
-
-      if (!req.file) {
-        return res.status(400).json({ error: "Nenhum arquivo enviado" });
-      }
-
-      let fileUrl: string;
-      let thumbnailUrl: string | undefined;
-
-      // Determine file type
-      let fileType: "video" | "audio" | "image" | "document" | "other" = "other";
-      if (req.file.mimetype.startsWith("video/")) fileType = "video";
-      else if (req.file.mimetype.startsWith("audio/")) fileType = "audio";
-      else if (req.file.mimetype.startsWith("image/")) fileType = "image";
-      else if (req.file.mimetype.includes("pdf") || req.file.mimetype.includes("document")) fileType = "document";
-
-      // Generate thumbnail for videos BEFORE uploading to Supabase (while local file exists)
-      const videoPath = path.join(uploadDir, req.file.filename);
-      const thumbnailFilename = `thumb_${req.file.filename.replace(/\.[^.]+$/, ".jpg")}`;
-      const thumbPath = path.join(uploadDir, thumbnailFilename);
-
-      if (fileType === "video") {
-        const success = await generateVideoThumbnail(videoPath, thumbPath);
-        if (success && fs.existsSync(thumbPath)) {
-          thumbnailUrl = `/uploads/${thumbnailFilename}`;
-        }
-      }
-
-      // Try to upload to Supabase Storage
-      if (supabase) {
-        await ensureBucketExists();
-
-        const timestamp = Date.now();
-        const safeName = req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, "_");
-        const filePath = `submissions/${submissionId}/${timestamp}_${safeName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from(STORAGE_BUCKET)
-          .upload(filePath, fs.readFileSync(videoPath), {
-            contentType: req.file.mimetype,
-          });
-
-        if (uploadError) {
-          console.error("Supabase upload error:", uploadError.message);
-          fileUrl = `/uploads/${req.file.filename}`;
-        } else {
-          const { data: urlData } = supabase.storage
-            .from(STORAGE_BUCKET)
-            .getPublicUrl(filePath);
-          fileUrl = urlData.publicUrl;
-
-          // Upload thumbnail to Supabase if it was generated
-          if (thumbnailUrl && fs.existsSync(thumbPath)) {
-            const thumbFilePath = `submissions/${submissionId}/${timestamp}_thumb_${safeName.replace(/\.[^.]+$/, ".jpg")}`;
-            const { error: thumbUploadError } = await supabase.storage
-              .from(STORAGE_BUCKET)
-              .upload(thumbFilePath, fs.readFileSync(thumbPath), {
-                contentType: "image/jpeg",
-              });
-
-            if (!thumbUploadError) {
-              const { data: thumbUrlData } = supabase.storage
-                .from(STORAGE_BUCKET)
-                .getPublicUrl(thumbFilePath);
-              thumbnailUrl = thumbUrlData.publicUrl;
-              // Delete local thumbnail
-              fs.unlinkSync(thumbPath);
-            }
-          }
-
-          // Delete local video file after successful Supabase upload
-          fs.unlinkSync(videoPath);
-        }
-      } else {
-        fileUrl = `/uploads/${req.file.filename}`;
-      }
-
-      // Save attachment metadata to database
-      const [attachment] = await db
-        .insert(submissionAttachments)
-        .values({
-          submissionId,
-          fileName: req.file.originalname,
-          fileUrl,
-          thumbnailUrl,
-          fileType,
-          fileSize: req.file.size,
-          mimeType: req.file.mimetype,
-        })
-        .returning();
-
-      res.json(attachment);
-    } catch (error) {
-      console.error("Upload submission file error:", error);
-      res.status(500).json({ error: "Falha ao enviar arquivo" });
-    }
-  });
-
-  // Get attachments for a submission
-  app.get("/api/client-submissions/:submissionId/attachments", async (req: Request, res: Response) => {
-    try {
-      const submissionId = parseInt(req.params.submissionId);
-
-      const attachments = await db
+      const userBoards = await db
         .select()
-        .from(submissionAttachments)
-        .where(eq(submissionAttachments.submissionId, submissionId));
+        .from(boards)
+        .where(eq(boards.ownerId, userId))
+        .orderBy(desc(boards.updatedAt));
 
-      res.json(attachments);
+      res.json(userBoards);
     } catch (error) {
-      console.error("Get attachments error:", error);
-      res.status(500).json({ error: "Falha ao buscar anexos" });
+      res.status(500).json({ error: "Failed to fetch boards" });
     }
   });
 
-  // Update submission status (admin action)
-  app.patch("/api/client-submissions/:id", async (req: Request, res: Response) => {
+  // Create Board
+  app.post("/api/boards", async (req: Request, res: Response) => {
     try {
-      const submissionId = parseInt(req.params.id);
-      const { status, adminNotes, assignedBoardId, assignedCardId } = req.body;
+      const { title, description, ownerId, color } = req.body;
 
-      const updateData: Record<string, unknown> = { updatedAt: new Date() };
-      if (status) updateData.status = status;
-      if (adminNotes !== undefined) updateData.adminNotes = adminNotes;
-      if (assignedBoardId !== undefined) updateData.assignedBoardId = assignedBoardId;
-      if (assignedCardId !== undefined) updateData.assignedCardId = assignedCardId;
-
-      const [updated] = await db
-        .update(clientSubmissions)
-        .set(updateData)
-        .where(eq(clientSubmissions.id, submissionId))
-        .returning();
-
-      res.json(updated);
-    } catch (error) {
-      console.error("Update submission error:", error);
-      res.status(500).json({ error: "Falha ao atualizar envio" });
-    }
-  });
-
-  // Create card from submission (moves to Kanban)
-  app.post("/api/client-submissions/:id/create-card", async (req: Request, res: Response) => {
-    try {
-      const submissionId = parseInt(req.params.id);
-      const { listId, boardId } = req.body;
-
-      if (!listId) {
-        return res.status(400).json({ error: "List ID é obrigatório" });
-      }
-
-      // Get submission
-      const [submission] = await db
-        .select()
-        .from(clientSubmissions)
-        .where(eq(clientSubmissions.id, submissionId));
-
-      if (!submission) {
-        return res.status(404).json({ error: "Envio não encontrado" });
-      }
-
-      // Get client info
-      const [client] = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, submission.clientId));
-
-      // Create card
-      const [card] = await db
-        .insert(cards)
+      const [board] = await db
+        .insert(boards)
         .values({
-          listId: parseInt(listId),
-          submissionId,
-          title: submission.title || `Envio de ${client?.name || "Cliente"}`,
-          description: submission.notes || "",
-          position: 0,
-          dueDate: submission.requestedDueDate,
-          priority: submission.urgency,
+          title,
+          description,
+          ownerId,
+          color: color || "#3b82f6",
         })
         .returning();
 
-      // Update submission with card reference
-      await db
-        .update(clientSubmissions)
-        .set({
-          assignedBoardId: parseInt(boardId),
-          assignedCardId: card.id,
-          status: "em_producao",
-          updatedAt: new Date(),
-        })
-        .where(eq(clientSubmissions.id, submissionId));
+      // Default lists
+      await db.insert(lists).values([
+        { boardId: board.id, title: "A Fazer", position: 0, color: "#e2e8f0" },
+        { boardId: board.id, title: "Em Progresso", position: 1, color: "#3b82f6" },
+        { boardId: board.id, title: "Concluído", position: 2, color: "#22c55e" },
+      ]);
 
-      res.json(card);
+      res.json(board);
     } catch (error) {
-      console.error("Create card from submission error:", error);
-      res.status(500).json({ error: "Falha ao criar card" });
+      res.status(500).json({ error: "Failed to create board" });
     }
   });
 
-  // Audio transcription endpoint using OpenAI Whisper
-  app.post("/api/transcribe-audio", async (req: Request, res: Response) => {
+  // Get Board Details (Lists & Cards)
+  app.get("/api/boards/:id", async (req: Request, res: Response) => {
     try {
-      const { audioUrl, transcriptionType } = req.body;
+      const boardId = parseInt(req.params.id);
 
-      if (!audioUrl || !transcriptionType) {
-        return res.status(400).json({ error: "audioUrl and transcriptionType are required" });
+      const [board] = await db.select().from(boards).where(eq(boards.id, boardId));
+
+      if (!board) {
+        return res.status(404).json({ error: "Board not found" });
       }
 
-      const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-      if (!OPENAI_API_KEY) {
-        console.error("OPENAI_API_KEY is not configured");
-        return res.status(500).json({ error: "Chave da API OpenAI não configurada" });
-      }
+      const boardLists = await db
+        .select()
+        .from(lists)
+        .where(eq(lists.boardId, boardId))
+        .orderBy(lists.position);
 
-      console.log("Fetching audio file from:", audioUrl);
+      const boardCards = await db
+        .select()
+        .from(cards)
+        .where(inArray(cards.listId, boardLists.map(l => l.id)));
 
-      let audioBuffer: Buffer;
-      let fileName = "audio.mp3";
-
-      if (audioUrl.startsWith("/uploads/")) {
-        const filePath = path.join(uploadDir, audioUrl.replace("/uploads/", ""));
-        if (!fs.existsSync(filePath)) {
-          return res.status(404).json({ error: "Arquivo de áudio não encontrado" });
-        }
-        audioBuffer = fs.readFileSync(filePath);
-        fileName = path.basename(filePath);
-      } else {
-        const audioResponse = await fetch(audioUrl);
-        if (!audioResponse.ok) {
-          console.error("Failed to fetch audio:", audioResponse.status);
-          return res.status(500).json({ error: "Falha ao buscar arquivo de áudio" });
-        }
-        const arrayBuffer = await audioResponse.arrayBuffer();
-        audioBuffer = Buffer.from(arrayBuffer);
-        const urlPath = new URL(audioUrl).pathname;
-        fileName = path.basename(urlPath) || "audio.mp3";
-      }
-
-      console.log("Audio file loaded, size:", audioBuffer.length, "bytes");
-
-      const OpenAI = (await import("openai")).default;
-      const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
-
-      const tempFilePath = path.join(uploadDir, `temp_${Date.now()}_${fileName}`);
-      fs.writeFileSync(tempFilePath, audioBuffer);
-
-      console.log("Sending audio to OpenAI Whisper for transcription...");
-
-      let transcription: string;
-      try {
-        const whisperResponse = await openai.audio.transcriptions.create({
-          file: fs.createReadStream(tempFilePath),
-          model: "whisper-1",
-          language: "pt",
-          response_format: "text",
-        });
-
-        transcription = whisperResponse as unknown as string;
-      } finally {
-        if (fs.existsSync(tempFilePath)) {
-          fs.unlinkSync(tempFilePath);
-        }
-      }
-
-      if (transcriptionType === "summarize" && transcription) {
-        console.log("Summarizing transcription with GPT...");
-        const summaryResponse = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content: "Você é um assistente especializado em sumarização. Forneça um resumo conciso e claro do texto a seguir, destacando os pontos principais.",
-            },
-            {
-              role: "user",
-              content: `Resuma o seguinte texto:\n\n${transcription}`,
-            },
-          ],
-        });
-        transcription = summaryResponse.choices[0]?.message?.content || transcription;
-      }
-
-      if (!transcription) {
-        console.error("No transcription generated");
-        return res.status(500).json({ error: "Nenhuma transcrição gerada" });
-      }
-
-      console.log("Transcription successful");
-
-      res.json({
-        transcription,
-        type: transcriptionType,
-      });
-    } catch (error: unknown) {
-      const err = error as { status?: number; message?: string };
-      if (err.status === 429) {
-        return res.status(429).json({
-          error: "Limite de taxa excedido. Por favor, tente novamente em alguns instantes.",
-        });
-      }
-      console.error("Error in transcribe-audio endpoint:", error);
-      res.status(500).json({
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      res.json({ ...board, lists: boardLists, cards: boardCards });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch board details" });
     }
   });
+
+  const httpServer = createServer(app);
+  return httpServer;
 }
