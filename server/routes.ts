@@ -7,7 +7,7 @@ import bcrypt from "bcryptjs";
 import { exec } from "child_process";
 import { db } from "./db";
 import { users, tasks, clientSubmissions, submissionAttachments, boards, lists, cards } from "../shared/schema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { supabase, STORAGE_BUCKET, ensureBucketExists } from "./supabase";
 
 const uploadDir = process.env.VERCEL
@@ -42,6 +42,74 @@ export async function registerRoutes(app: Express): Promise<void> {
   // Health check
   app.get("/api/health", (_req: Request, res: Response) => {
     res.json({ status: "ok" });
+  });
+
+  // Diagnostics and Auto-Repair
+  app.get("/api/diagnostics", async (_req: Request, res: Response) => {
+    const report: any = {
+      timestamp: new Date().toISOString(),
+      env: {
+        nodeEnv: process.env.NODE_ENV,
+        hasDatabaseUrl: !!process.env.DATABASE_URL,
+        hasSupabaseUrl: !!process.env.SUPABASE_URL,
+        vercel: process.env.VERCEL,
+      },
+      checks: {},
+    };
+
+    try {
+      // 1. Check DB Connection
+      const start = Date.now();
+      const [result] = await db.execute(sql`SELECT 1 as connected`);
+      report.checks.database = {
+        status: "ok",
+        latency: Date.now() - start,
+        result,
+      };
+
+      // 2. Check Users Table & Admin
+      const adminEmail = "admin@demo.com";
+      const usersList = await db.select().from(users).limit(5);
+      const admin = await db.select().from(users).where(eq(users.email, adminEmail));
+
+      report.checks.usersTable = {
+        count: usersList.length,
+        hasAdmin: admin.length > 0,
+      };
+
+      // 3. Auto-Seed Admin if missing
+      if (admin.length === 0) {
+        const hashedPassword = await bcrypt.hash("1234", 10);
+        const [newAdmin] = await db.insert(users).values({
+          email: adminEmail,
+          password: hashedPassword,
+          name: "Admin Demo",
+          role: "admin",
+          isActive: true,
+        }).returning();
+
+        report.checks.seeding = {
+          status: "success",
+          message: "Admin user created",
+          user: newAdmin.email,
+        };
+      } else {
+        report.checks.seeding = {
+          status: "skipped",
+          message: "Admin user already exists",
+        };
+      }
+
+      res.json(report);
+    } catch (error: any) {
+      console.error("Diagnostic failed:", error);
+      report.error = {
+        message: error.message,
+        stack: error.stack,
+      };
+      // Return 200 even on error to see the report in JSON
+      res.json(report);
+    }
   });
 
   // ===== AUTHENTICATION ROUTES =====
