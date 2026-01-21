@@ -4,7 +4,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import fs from "fs";
+
 import { db } from "./db.js";
 import { uploadToSupabase } from "./supabase.js";
 import {
@@ -46,7 +46,6 @@ export function registerRoutes(app: Express): Server {
     console.error("Failed to create directories:", err);
   }
 
-  import { uploadToSupabase } from "./supabase";
 
   // Multer using memory storage (for Supabase upload)
   const storage = multer.memoryStorage();
