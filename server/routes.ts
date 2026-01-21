@@ -4,7 +4,9 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import fs from "fs";
 import { db } from "./db.js";
+import { uploadToSupabase } from "./supabase.js";
 import {
   users,
   clientSubmissions,
@@ -44,16 +46,16 @@ export function registerRoutes(app: Express): Server {
     console.error("Failed to create directories:", err);
   }
 
-  // Multer configuration
-  const storage = multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, uploadDir),
-    filename: (_req, file, cb) => {
-      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-      cb(null, uniqueSuffix + "-" + file.originalname);
-    },
-  });
+  import { uploadToSupabase } from "./supabase";
 
-  const upload = multer({ storage });
+  // Multer using memory storage (for Supabase upload)
+  const storage = multer.memoryStorage();
+  const upload = multer({
+    storage,
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB limit
+    }
+  });
 
   // Add diagnostics endpoint early
   app.get("/api/diagnostics", async (_req, res) => {
@@ -287,12 +289,46 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // ========== GENERAL UPLOAD API (Admin Kanban) ==========
+  app.post("/api/upload", upload.single("file"), async (req: Request, res: Response) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      console.log("Uploading file:", req.file.originalname, req.file.mimetype, req.file.size);
+
+      const result = await uploadToSupabase(
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype
+      );
+
+      if (!result) {
+        throw new Error("Failed to upload to Supabase");
+      }
+
+      res.json({
+        url: result.url,
+        thumbnailUrl: result.url, // For simple preview
+        name: req.file.originalname,
+        size: req.file.size,
+        type: req.file.mimetype,
+      });
+    } catch (error) {
+      console.error("Upload handler error:", error);
+      res.status(500).json({ error: "Failed to upload file" });
+    }
+  });
+
   // ========== CLIENT SUBMISSIONS ==========
 
-  // Create Submission (with chunked upload support)
-  app.post("/api/submissions", async (req: Request, res: Response) => {
+  // ========== CLIENT SUBMISSIONS ==========
+
+  // Create Submission
+  app.post("/api/client-submissions", async (req: Request, res: Response) => {
     try {
-      const { clientId, title, urgency, requestedDueDate, notes, chunkedFiles } = req.body;
+      const { clientId, title, urgency, requestedDueDate, notes } = req.body;
 
       if (!clientId) {
         return res.status(400).json({ error: "Client ID required" });
@@ -310,24 +346,48 @@ export function registerRoutes(app: Express): Server {
         })
         .returning();
 
-      if (chunkedFiles && chunkedFiles.length > 0) {
-        for (const file of chunkedFiles) {
-          await db.insert(submissionAttachments).values({
-            submissionId: submission.id,
-            fileName: file.fileName,
-            fileUrl: file.fileUrl,
-            fileType: file.fileType,
-            fileSize: file.fileSize,
-            mimeType: file.mimeType,
-          });
-        }
-      }
-
       res.json(submission);
     } catch (error) {
       console.error("Submission error:", error);
       res.status(500).json({ error: "Failed to create submission" });
     }
+  });
+
+  // Client Upload (Simple)
+  app.post("/api/client-submissions/:id/upload", upload.single("file"), async (req: Request, res: Response) => {
+    try {
+      const submissionId = parseInt(req.params.id);
+      if (!req.file) return res.status(400).json({ error: "No file provided" });
+
+      const result = await uploadToSupabase(
+        req.file.buffer,
+        req.file.originalname,
+        req.file.mimetype
+      );
+
+      if (!result) throw new Error("Supabase upload failed");
+
+      // Save attachment record
+      const [attachment] = await db.insert(submissionAttachments).values({
+        submissionId,
+        fileName: req.file.originalname,
+        fileUrl: result.url,
+        fileType: req.file.mimetype.split('/')[0], // 'image', 'video', etc
+        fileSize: req.file.size,
+        mimeType: req.file.mimetype,
+      }).returning();
+
+      res.json(attachment);
+    } catch (error) {
+      console.error("Submission upload error:", error);
+      res.status(500).json({ error: "Upload failed" });
+    }
+  });
+
+  // Legacy/Compatibility route (just in case)
+  app.post("/api/submissions", async (req: Request, res: Response) => {
+    // Redirect logic or duplicate
+    return res.status(307).redirect(307, "/api/client-submissions");
   });
 
   // Get Client Submissions
