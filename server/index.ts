@@ -1,4 +1,5 @@
 console.log("Loading server/index.ts...");
+import "dotenv/config";
 import express, { type Request, type Response, type NextFunction } from "express";
 import { registerRoutes } from "./routes.js";
 
