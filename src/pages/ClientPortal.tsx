@@ -186,7 +186,16 @@ export default function ClientPortal() {
         }),
       });
 
-      if (!urlResponse.ok) throw new Error("Falha ao preparar upload");
+      if (!urlResponse.ok) {
+        const errorText = await urlResponse.text();
+        console.error("Upload URL error:", errorText);
+        try {
+          const errorJson = JSON.parse(errorText);
+          throw new Error(errorJson.error || "Falha ao preparar upload");
+        } catch (e) {
+          throw new Error(`Falha ao preparar upload: ${errorText}`);
+        }
+      }
       const { url: uploadUrl, publicUrl } = await urlResponse.json();
 
       // Upload directly to Supabase
