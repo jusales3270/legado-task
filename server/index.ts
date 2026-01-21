@@ -2,6 +2,7 @@ console.log("Loading server/index.ts...");
 import "dotenv/config";
 import express, { type Request, type Response, type NextFunction } from "express";
 import { registerRoutes } from "./routes.js";
+import { ensureBucketExists } from "./supabase.js";
 
 console.log("Initializing Express app...");
 const app = express();
@@ -38,9 +39,15 @@ registerRoutes(app);
 
 // Only start the server if we're running locally (not in Vercel)
 if (process.env.NODE_ENV !== "production" || !process.env.VERCEL) {
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
+  // Ensure storage is ready before listening (locally)
+  ensureBucketExists().then(() => {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://0.0.0.0:${PORT}`);
+    });
   });
+} else {
+  // In Vercel, just trigger it in background
+  ensureBucketExists().catch(err => console.error("Failed to init storage:", err));
 }
 
 export { app };
