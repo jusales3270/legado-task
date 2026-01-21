@@ -383,6 +383,32 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Link Direct Upload to Submission
+  app.post("/api/client-submissions/:id/attachments", async (req: Request, res: Response) => {
+    try {
+      const submissionId = parseInt(req.params.id);
+      const { fileName, fileUrl, fileType, fileSize, mimeType } = req.body;
+
+      if (!fileName || !fileUrl) {
+        return res.status(400).json({ error: "File details required" });
+      }
+
+      const [attachment] = await db.insert(submissionAttachments).values({
+        submissionId,
+        fileName,
+        fileUrl,
+        fileType: fileType || mimeType?.split('/')[0] || 'unknown',
+        fileSize: fileSize || 0,
+        mimeType: mimeType || 'application/octet-stream',
+      }).returning();
+
+      res.json(attachment);
+    } catch (error) {
+      console.error("Attachment link error:", error);
+      res.status(500).json({ error: "Failed to link attachment" });
+    }
+  });
+
   // Get Signed Upload URL for Direct Upload
   app.post("/api/upload-url", async (req: Request, res: Response) => {
     try {

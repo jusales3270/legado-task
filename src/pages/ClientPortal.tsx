@@ -49,7 +49,7 @@ const urgencyConfig: Record<UrgencyLevel, { label: string; color: string; border
 export default function ClientPortal() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   const [urgency, setUrgency] = useState<UrgencyLevel>("normal");
   const [dueDate, setDueDate] = useState<Date | undefined>();
   const [notes, setNotes] = useState("");
@@ -63,7 +63,7 @@ export default function ClientPortal() {
   const [uploadStatus, setUploadStatus] = useState<string>("");
   const [chunksUploaded, setChunksUploaded] = useState(0);
   const [totalChunks, setTotalChunks] = useState(0);
-  
+
   const isPausedRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -90,7 +90,7 @@ export default function ClientPortal() {
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
-    
+
     const file = e.dataTransfer.files[0];
     if (file) {
       handleFileSelect(file);
@@ -173,118 +173,68 @@ export default function ClientPortal() {
       const numChunks = Math.ceil(file.size / CHUNK_SIZE);
       setTotalChunks(numChunks);
 
-      // For small files (< 50MB), use simple upload
-      if (file.size < 50 * 1024 * 1024) {
-        setUploadStatus("Enviando arquivo...");
-        const formData = new FormData();
-        formData.append("file", file);
+      // Step 2: Direct Upload to Supabase
+      setUploadStatus("Iniciando upload direto...");
 
-        const uploadPromise = new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-
-          xhr.upload.addEventListener("progress", (event) => {
-            if (event.lengthComputable) {
-              const progress = Math.round((event.loaded / event.total) * 100);
-              setUploadProgress(progress);
-            }
-          });
-
-          xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve();
-            } else {
-              reject(new Error("Upload failed"));
-            }
-          };
-          xhr.onerror = () => reject(new Error("Upload failed"));
-
-          xhr.open("POST", `/api/client-submissions/${submission.id}/upload`);
-          xhr.send(formData);
-        });
-
-        await uploadPromise;
-        return submission;
-      }
-
-      // Step 2: Initialize chunked upload for large files
-      setUploadStatus("Preparando upload em partes...");
-      const initResponse = await fetch("/api/chunked-upload/init", {
+      // Get Signed URL
+      const urlResponse = await fetch("/api/upload-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           fileName: file.name,
-          fileSize: file.size,
-          mimeType: file.type,
-          submissionId: submission.id,
+          fileType: file.type || "application/octet-stream"
         }),
       });
 
-      if (!initResponse.ok) {
-        throw new Error("Failed to initialize chunked upload");
-      }
+      if (!urlResponse.ok) throw new Error("Falha ao preparar upload");
+      const { url: uploadUrl, publicUrl } = await urlResponse.json();
 
-      const { uploadId } = await initResponse.json();
+      // Upload directly to Supabase
+      setUploadStatus("Enviando arquivo...");
 
-      // Step 3: Upload chunks in parallel
-      abortControllerRef.current = new AbortController();
-      
-      // Create a queue of chunk indices to upload
-      const chunkQueue: number[] = Array.from({ length: numChunks }, (_, i) => i);
-      let completedChunks = 0;
-      let failedChunk: number | null = null;
-      
-      // Worker function that processes chunks from the queue
-      const uploadWorker = async (): Promise<void> => {
-        while (chunkQueue.length > 0 && failedChunk === null && !abortControllerRef.current?.signal.aborted) {
-          // Check if paused
-          while (isPausedRef.current && !abortControllerRef.current?.signal.aborted) {
-            await new Promise(resolve => setTimeout(resolve, 100));
+      const uploadPromise = new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+
+        xhr.upload.addEventListener("progress", (event) => {
+          if (event.lengthComputable) {
+            const progress = Math.round((event.loaded / event.total) * 100);
+            setUploadProgress(progress);
           }
-          
-          // Exit if aborted
-          if (abortControllerRef.current?.signal.aborted) return;
-          
-          const chunkIndex = chunkQueue.shift();
-          if (chunkIndex === undefined) break;
-          
-          const start = chunkIndex * CHUNK_SIZE;
-          const end = Math.min(start + CHUNK_SIZE, file.size);
-          const chunk = file.slice(start, end);
-          
-          const success = await uploadChunk(uploadId, chunkIndex, chunk, abortControllerRef.current!.signal);
-          
-          if (!success) {
-            failedChunk = chunkIndex;
-            // Abort all other in-flight uploads
-            abortControllerRef.current?.abort();
-            return;
-          }
-          
-          completedChunks++;
-          setChunksUploaded(completedChunks);
-          setUploadProgress(Math.round((completedChunks / numChunks) * 100));
-          setUploadStatus(`Enviando partes... ${completedChunks} de ${numChunks} concluídas`);
-        }
-      };
-      
-      // Start parallel workers
-      setUploadStatus(`Enviando ${numChunks} partes (${PARALLEL_UPLOADS} simultâneas)...`);
-      const workers = Array.from({ length: Math.min(PARALLEL_UPLOADS, numChunks) }, () => uploadWorker());
-      await Promise.all(workers);
-      
-      if (failedChunk !== null) {
-        throw new Error(`Failed to upload chunk ${failedChunk}`);
-      }
+        });
 
-      // Step 4: Finalize upload
-      setUploadStatus("Finalizando upload...");
-      const finalizeResponse = await fetch(`/api/chunked-upload/${uploadId}/finalize`, {
-        method: "POST",
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve();
+          } else {
+            console.error("Direct upload failed", xhr.status, xhr.responseText);
+            reject(new Error("Falha no upload direto"));
+          }
+        };
+        xhr.onerror = () => reject(new Error("Erro de rede no upload"));
+
+        xhr.open("PUT", uploadUrl);
+        // Supabase requires Content-Type header matches what was signed
+        xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+        xhr.send(file);
       });
 
-      if (!finalizeResponse.ok) {
-        throw new Error("Failed to finalize upload");
-      }
+      await uploadPromise;
+
+      // Step 3: Link attachment to submission
+      setUploadStatus("Finalizando...");
+      const linkResponse = await fetch(`/api/client-submissions/${submission.id}/attachments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileUrl: publicUrl,
+          fileType: file.type.split('/')[0],
+          fileSize: file.size,
+          mimeType: file.type
+        }),
+      });
+
+      if (!linkResponse.ok) throw new Error("Falha ao vincular anexo");
 
       return submission;
     },
@@ -292,22 +242,19 @@ export default function ClientPortal() {
       setIsSubmitting(false);
       setShowSuccess(true);
       setUploadStatus("");
+      setUploadProgress(0); // Reset progress
     },
     onError: (error) => {
+      console.error("Upload process error:", error);
       setIsSubmitting(false);
       setUploadStatus("");
-      if (error instanceof Error && error.name === "AbortError") {
-        toast({
-          title: "Upload cancelado",
-          description: "O upload foi cancelado.",
-        });
-      } else {
-        toast({
-          title: "Erro ao enviar",
-          description: "Não foi possível enviar o arquivo. Tente novamente.",
-          variant: "destructive",
-        });
-      }
+      setUploadError(error instanceof Error ? error.message : "Erro desconhecido");
+
+      toast({
+        title: "Erro ao enviar",
+        description: error instanceof Error ? error.message : "Não foi possível enviar o arquivo.",
+        variant: "destructive",
+      });
     },
   });
 
@@ -378,9 +325,9 @@ export default function ClientPortal() {
       <header className="border-b border-gray-800 bg-black/90 backdrop-blur-sm sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-3 sm:px-4 py-3 sm:py-4 flex items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-3">
-            <img 
-              src={loginLogo} 
-              alt="Legado Digital" 
+            <img
+              src={loginLogo}
+              alt="Legado Digital"
               className="h-8 sm:h-12 w-auto rounded-lg"
             />
             <div className="hidden sm:block">
@@ -470,7 +417,7 @@ export default function ClientPortal() {
 
             <div className="space-y-2">
               <Label className="text-gray-300">Arquivo de Vídeo</Label>
-              
+
               {!pendingFile && !isSubmitting && (
                 <div
                   className={cn(
