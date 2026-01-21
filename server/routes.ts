@@ -6,7 +6,7 @@ import path from "path";
 import fs from "fs";
 
 import { db } from "./db.js";
-import { uploadToSupabase } from "./supabase.js";
+import { uploadToSupabase, createSignedUploadUrl } from "./supabase.js";
 import {
   users,
   clientSubmissions,
@@ -352,7 +352,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Client Upload (Simple)
+  // Client Upload (Simple) - Proxy (Keep for small files or fallback, but ideally use Direct)
   app.post("/api/client-submissions/:id/upload", upload.single("file"), async (req: Request, res: Response) => {
     try {
       const submissionId = parseInt(req.params.id);
@@ -380,6 +380,24 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Submission upload error:", error);
       res.status(500).json({ error: "Upload failed" });
+    }
+  });
+
+  // Get Signed Upload URL for Direct Upload
+  app.post("/api/upload-url", async (req: Request, res: Response) => {
+    try {
+      const { fileName, fileType } = req.body;
+      if (!fileName || !fileType) return res.status(400).json({ error: "fileName and fileType required" });
+
+      const result = await createSignedUploadUrl(fileName, fileType);
+      if (!result) {
+        return res.status(500).json({ error: "Failed to generate upload URL" });
+      }
+
+      res.json(result);
+    } catch (e: any) {
+      console.error("Upload URL error:", e);
+      res.status(500).json({ error: e.message || "Internal Server Error" });
     }
   });
 
