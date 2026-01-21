@@ -7,6 +7,16 @@ console.log("Initializing Express app...");
 const app = express();
 const PORT = 3001;
 
+console.log("Environment Debug:");
+console.log("- NODE_ENV:", process.env.NODE_ENV);
+console.log("- VERCEL:", process.env.VERCEL);
+console.log("- DATABASE_URL set:", !!process.env.DATABASE_URL);
+if (process.env.DATABASE_URL) {
+  console.log("- DATABASE_URL length:", process.env.DATABASE_URL.length);
+} else {
+  console.error("CRITICAL: DATABASE_URL is missing!");
+}
+
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
