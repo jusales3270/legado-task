@@ -16,29 +16,42 @@ import { useEffect } from "react";
 
 const queryClient = new QueryClient();
 
-// Bypass Protection: Always renders children and ensures a session exists
+// Protected Route Component
 function ProtectedRoute({ children, requiredRole }: { children: React.ReactNode; requiredRole?: string }) {
-  // Auto-login logic for "No Login Screen" mode
-  useEffect(() => {
-    const userStr = localStorage.getItem("user");
-    if (!userStr) {
-      const mockUser = {
-        id: 1,
-        name: "Admin Bypass",
-        email: "admin@demo.com",
-        role: "admin"
-      };
-      localStorage.setItem("user", JSON.stringify(mockUser));
-      console.log("Auto-logged in as Admin Bypass");
-    }
-  }, []);
+  const userStr = localStorage.getItem("user");
 
-  return <>{children}</>;
+  if (!userStr) {
+    return <Navigate to="/login" replace />;
+  }
+
+  try {
+    const user = JSON.parse(userStr);
+
+    // Check role if required
+    if (requiredRole && user.role !== requiredRole && user.role !== 'admin') {
+      // Admin can access everything, others restricted
+      return <Navigate to="/login" replace />;
+    }
+
+    return <>{children}</>;
+  } catch (e) {
+    localStorage.removeItem("user");
+    return <Navigate to="/login" replace />;
+  }
 }
 
-// Redirects root to Kanban (Admin view) by default
+// Root redirect logic
 function AuthRedirect() {
-  return <Navigate to="/kanban" replace />;
+  const userStr = localStorage.getItem("user");
+  if (userStr) {
+    try {
+      const user = JSON.parse(userStr);
+      return <Navigate to={user.role === 'client' ? "/client-portal" : "/kanban"} replace />;
+    } catch (e) {
+      return <Navigate to="/login" replace />;
+    }
+  }
+  return <Navigate to="/login" replace />;
 }
 
 const App = () => (

@@ -21,6 +21,6 @@ if (rawUrl && rawUrl.includes("6543") && !rawUrl.includes("pgbouncer=true")) {
 
 export const pool = new Pool({
   connectionString,
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : undefined,
+  ssl: { rejectUnauthorized: false },
 });
 export const db = drizzle(pool, { schema });
