@@ -322,6 +322,41 @@ export function registerRoutes(app: Express): Server {
 
   // ========== CLIENT SUBMISSIONS ==========
 
+  // ========== ADMIN INBOX ==========
+  app.get("/api/admin/submissions", async (req: Request, res: Response) => {
+    try {
+      const allSubmissions = await db
+        .select()
+        .from(clientSubmissions)
+        .orderBy(desc(clientSubmissions.createdAt));
+
+      const result = await Promise.all(
+        allSubmissions.map(async (submission) => {
+          const [client] = await db
+            .select({ id: users.id, name: users.name, email: users.email })
+            .from(users)
+            .where(eq(users.id, submission.clientId));
+
+          const attachments = await db
+            .select()
+            .from(submissionAttachments)
+            .where(eq(submissionAttachments.submissionId, submission.id));
+
+          return {
+            submission,
+            client: client || null,
+            attachments: attachments || [],
+          };
+        })
+      );
+
+      res.json(result);
+    } catch (error) {
+      console.error("Admin inbox error:", error);
+      res.status(500).json({ error: "Failed to fetch submissions" });
+    }
+  });
+
   // ========== CLIENT SUBMISSIONS ==========
 
   // Create Submission
