@@ -713,8 +713,6 @@ export const CardDetailsDialog = ({
         const formData = new FormData();
         formData.append('file', file);
 
-        console.log('Uploading file:', file.name, file.type, file.size);
-
         const response = await fetch('/api/upload', {
           method: 'POST',
           body: formData,
@@ -722,12 +720,10 @@ export const CardDetailsDialog = ({
 
         if (!response.ok) {
           const errorData = await response.json();
-          console.error("Upload failed:", errorData);
           throw new Error(errorData.error || 'Upload failed');
         }
 
         const data = await response.json();
-        console.log("Upload success:", data);
 
         let type: 'image' | 'video' | 'audio' | 'other' = 'other';
         if (file.type.startsWith('image/')) type = 'image';
@@ -742,7 +738,6 @@ export const CardDetailsDialog = ({
           thumbnailUrl: data.thumbnailUrl,
         };
 
-        // 2. Link to card in database
         const attachmentResponse = await fetch(`/api/cards/${card.id}/attachments`, {
           method: 'POST',
           headers: {
@@ -757,13 +752,15 @@ export const CardDetailsDialog = ({
 
         const savedAttachment = await attachmentResponse.json();
 
-        // 3. Add to local store with real ID
+        // Safety check for ID
+        const attachmentId = savedAttachment.id ? savedAttachment.id.toString() : `temp-${Date.now()}`;
+
         const attachment: Attachment = {
-          id: savedAttachment.id.toString(), // Ensure ID is string for frontend
-          name: savedAttachment.fileName,
-          url: savedAttachment.fileUrl,
-          type: savedAttachment.fileType as any,
-          size: savedAttachment.fileSize,
+          id: attachmentId,
+          name: savedAttachment.fileName || file.name,
+          url: savedAttachment.fileUrl || data.url,
+          type: (savedAttachment.fileType as any) || type,
+          size: savedAttachment.fileSize || file.size,
           uploadedAt: savedAttachment.createdAt || new Date().toISOString(),
           thumbnailUrl: savedAttachment.thumbnailUrl,
           transcription: savedAttachment.transcription,
@@ -773,10 +770,10 @@ export const CardDetailsDialog = ({
         onAddAttachment(card.id, attachment);
       }
 
-      toast({ title: "Files uploaded successfully!" });
+      toast({ title: "Arquivo enviado com sucesso!" });
     } catch (error) {
       console.error("Upload error:", error);
-      toast({ title: "Upload failed", description: "Please try again", variant: "destructive" });
+      toast({ title: "Falha no envio", description: "Tente novamente mais tarde", variant: "destructive" });
     } finally {
       setIsUploading(false);
     }
