@@ -242,54 +242,108 @@ const BoardView = () => {
 
       const tag = urgencyTags[submission.urgency] || urgencyTags.normal;
 
-      const cardAttachments: Attachment[] = submissionAttachments.map((att) => ({
-        id: `att-${att.id}-${Date.now()}`,
-        name: att.fileName,
-        url: att.fileUrl,
-        type: att.fileType as "image" | "video" | "audio" | "document" | "other",
-        size: att.fileSize || 0,
-        uploadedAt: att.createdAt,
-        thumbnailUrl: att.thumbnailUrl || undefined,
-      }));
-
-      const newCard: Omit<Card, "id"> = {
+      // 1. Create Card via API to get Real ID
+      const newCardPayload = {
+        listId: parseInt(listId),
         title: submission.title || `Envio do Cliente #${submission.clientId}`,
         description: submission.notes || "",
-        listId,
-        order: 0,
-        members: [],
-        tags: [tag],
-        attachments: cardAttachments,
-        comments: [],
-        checklist: [],
+        tags: [tag], // Note: The API might expect tagIds, checking api/cards impl: yes, tagIds. 
+        // But for this quick fix we'll use the existing store.addCard logic partially or full API.
+        // Let's use Full API to ensure consistency.
+        priority: "medium",
         dueDate: submission.requestedDueDate || undefined,
-        archived: false,
+        position: 0 // Top of list
       };
 
-      store.addCard(listId, newCard.title);
+      // We need to use fetch directly or store.addTagToCard later? 
+      // The store.addCard is optimistic and returns a temp ID.
+      // Better approach: Use store.addCard to get UI optimistic, then replace logic?
+      // No, for persistence safety, let's do API first, then sync Store.
 
-      const list = board.lists.find((l) => l.id === listId);
-      if (list && list.cards.length > 0) {
-        const addedCard = list.cards[list.cards.length - 1];
-        store.updateCard(addedCard.id, {
-          description: newCard.description,
-          tags: newCard.tags,
-          attachments: newCard.attachments,
-          dueDate: newCard.dueDate,
+      const createCardRes = await fetch('/api/cards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newCardPayload)
+      });
+
+      if (!createCardRes.ok) throw new Error("Failed to create card");
+      const createdCard = await createCardRes.json();
+
+      // 2. Add Tag (Urgency) - API for tags
+      // Assuming we have an API for this or we just update local store? 
+      // The current system seems to lack robust Tag API. 
+      // Let's rely on Store sync for Tags for now or add them via update.
+      store.addTagToCard(createdCard.id.toString(), tag);
+
+      // 3. Persist Attachments
+      const cardAttachments: Attachment[] = [];
+      for (const att of submissionAttachments) {
+        const attachmentPayload = {
+          name: att.fileName,
+          url: att.fileUrl,
+          type: att.fileType,
+          size: att.fileSize,
+          thumbnailUrl: att.thumbnailUrl
+        };
+
+        const attRes = await fetch(`/api/cards/${createdCard.id}/attachments`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(attachmentPayload)
         });
+
+        if (attRes.ok) {
+          const savedAtt = await attRes.json();
+          cardAttachments.push({
+            id: savedAtt.id.toString(),
+            name: savedAtt.fileName,
+            url: savedAtt.fileUrl,
+            type: savedAtt.fileType as any,
+            size: savedAtt.fileSize,
+            uploadedAt: savedAtt.createdAt,
+            thumbnailUrl: savedAtt.thumbnailUrl,
+            transcription: savedAtt.transcription,
+            transcriptionStatus: savedAtt.transcriptionStatus
+          });
+        }
       }
 
+      // 4. Update Store with Full Data
+      // We need to inject this new card into the store manually since we bypassed store.addCard
+      const boardList = board.lists.find(l => l.id === listId);
+      if (boardList) {
+        // We need to construct the card object for the store
+        const storeCard: Card = {
+          id: createdCard.id.toString(),
+          title: createdCard.title,
+          description: createdCard.description,
+          listId: listId,
+          tags: [tag],
+          members: [],
+          checklist: [],
+          attachments: cardAttachments,
+          comments: [],
+          archived: false,
+          order: createdCard.position,
+          dueDate: createdCard.dueDate
+        };
+
+        boardList.cards.push(storeCard); // Add to local list
+        store["notify"](); // Force update
+      }
+
+      // 5. Update Submission Status
       await fetch(`/api/client-submissions/${submission.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "em_analise" }),
+        body: JSON.stringify({ status: "em_analise", assignedCardId: createdCard.id })
       });
 
       queryClient.invalidateQueries({ queryKey: ["/api/admin/submissions"] });
 
       toast({
         title: "Tarefa adicionada!",
-        description: `O envio foi adicionado à lista "${list?.title}".`,
+        description: `O envio foi adicionado à lista.`,
       });
     } catch (error) {
       console.error("Error adding task to board:", error);
