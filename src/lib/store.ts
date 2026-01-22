@@ -152,7 +152,7 @@ class Store {
               members: [], // TODO: fetch members relation
               tags: [], // TODO: fetch tags relation
               checklist: [], // TODO: fetch checklist
-              attachments: [],
+              attachments: Array.isArray(c.attachments) ? c.attachments : [],
               comments: [],
             }))
             .sort((a: any, b: any) => a.order - b.order)
