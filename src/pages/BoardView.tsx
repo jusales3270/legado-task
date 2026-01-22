@@ -333,11 +333,15 @@ const BoardView = () => {
       }
 
       // 5. Update Submission Status
-      await fetch(`/api/client-submissions/${submission.id}`, {
+      const updateRes = await fetch(`/api/client-submissions/${submission.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "em_analise", assignedCardId: createdCard.id })
       });
+
+      if (!updateRes.ok) {
+        throw new Error("Failed to update submission status");
+      }
 
       queryClient.invalidateQueries({ queryKey: ["/api/admin/submissions"] });
 

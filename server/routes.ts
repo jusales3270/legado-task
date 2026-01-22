@@ -445,6 +445,35 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Update Submission Status (e.g., when moving to a board)
+  app.patch("/api/client-submissions/:id", async (req: Request, res: Response) => {
+    try {
+      const submissionId = parseInt(req.params.id);
+      const { status, assignedCardId, assignedBoardId, adminNotes } = req.body;
+
+      const updates: any = {};
+      if (status !== undefined) updates.status = status;
+      if (assignedCardId !== undefined) updates.assignedCardId = assignedCardId;
+      if (assignedBoardId !== undefined) updates.assignedBoardId = assignedBoardId;
+      if (adminNotes !== undefined) updates.adminNotes = adminNotes;
+
+      const [updatedSubmission] = await db
+        .update(clientSubmissions)
+        .set({ ...updates, updatedAt: new Date() })
+        .where(eq(clientSubmissions.id, submissionId))
+        .returning();
+
+      if (!updatedSubmission) {
+        return res.status(404).json({ error: "Submission not found" });
+      }
+
+      res.json(updatedSubmission);
+    } catch (error) {
+      console.error("Update submission error:", error);
+      res.status(500).json({ error: "Failed to update submission" });
+    }
+  });
+
   // Transcribe Attachment
   app.post("/api/cards/:id/attachments", async (req: Request, res: Response) => {
     try {
