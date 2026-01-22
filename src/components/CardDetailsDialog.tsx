@@ -710,21 +710,40 @@ export const CardDetailsDialog = ({
 
     try {
       for (const file of Array.from(files)) {
-        const formData = new FormData();
-        formData.append('file', file);
-
-        const response = await fetch('/api/upload', {
+        // 1. Get Signed Upload URL
+        console.log('Requesting upload URL for:', file.name, file.size);
+        const signedUrlRes = await fetch('/api/upload-url', {
           method: 'POST',
-          body: formData,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileType: file.type
+          })
         });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Upload failed');
+        if (!signedUrlRes.ok) {
+          throw new Error('Failed to get upload URL');
         }
 
-        const data = await response.json();
+        const { url: uploadUrl, publicUrl } = await signedUrlRes.json();
 
+        // 2. Upload directly to Supabase
+        console.log('Uploading directly to storage...');
+        const uploadRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          body: file,
+          headers: {
+            'Content-Type': file.type
+          }
+        });
+
+        if (!uploadRes.ok) {
+          throw new Error('Direct upload failed');
+        }
+
+        console.log('Upload success, linking to card...');
+
+        // 3. Determine type and Link to card
         let type: 'image' | 'video' | 'audio' | 'other' = 'other';
         if (file.type.startsWith('image/')) type = 'image';
         else if (file.type.startsWith('video/')) type = 'video';
@@ -732,10 +751,10 @@ export const CardDetailsDialog = ({
 
         const attachmentData = {
           name: file.name,
-          url: data.url,
+          url: publicUrl, // Use the public URL for access
           type,
           size: file.size,
-          thumbnailUrl: data.thumbnailUrl,
+          thumbnailUrl: publicUrl, // For images, thumb is same as url. For others, it's used as is.
         };
 
         const attachmentResponse = await fetch(`/api/cards/${card.id}/attachments`, {
@@ -758,7 +777,7 @@ export const CardDetailsDialog = ({
         const attachment: Attachment = {
           id: attachmentId,
           name: savedAttachment.fileName || file.name,
-          url: savedAttachment.fileUrl || data.url,
+          url: savedAttachment.fileUrl || publicUrl,
           type: (savedAttachment.fileType as any) || type,
           size: savedAttachment.fileSize || file.size,
           uploadedAt: savedAttachment.createdAt || new Date().toISOString(),
@@ -773,7 +792,7 @@ export const CardDetailsDialog = ({
       toast({ title: "Arquivo enviado com sucesso!" });
     } catch (error) {
       console.error("Upload error:", error);
-      toast({ title: "Falha no envio", description: "Tente novamente mais tarde", variant: "destructive" });
+      toast({ title: "Falha no envio", description: "Verifique sua conexão ou tamanho do arquivo", variant: "destructive" });
     } finally {
       setIsUploading(false);
     }
