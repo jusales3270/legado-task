@@ -481,42 +481,72 @@ const SortableAttachment = ({
 
         {attachment.type === "video" && (
           <div
-            className="h-20 w-20 flex items-center justify-center bg-secondary rounded cursor-pointer hover:opacity-80 transition-opacity mb-2 relative overflow-hidden"
+            className="h-20 w-20 flex items-center justify-center bg-black rounded cursor-pointer hover:opacity-80 transition-opacity mb-2 relative overflow-hidden"
             onClick={onPreview}
           >
-            {attachment.thumbnailUrl ? (
-              <>
-                <img
-                  src={attachment.thumbnailUrl}
-                  alt={attachment.name}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                  <FileVideo className="h-6 w-6 text-white" />
-                </div>
-              </>
-            ) : (
-              <FileVideo className="h-10 w-10 text-muted-foreground" />
-            )}
+            <video
+              src={attachment.url}
+              className="w-full h-full object-cover"
+              preload="metadata"
+              muted
+            />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+              <FileVideo className="h-6 w-6 text-white" />
+            </div>
           </div>
         )}
 
         {attachment.type === "other" && (
-          <Paperclip className="h-10 w-10 text-muted-foreground mb-2" />
+          <a
+            href={attachment.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 group/link hover:underline"
+          >
+            <div className="h-10 w-10 flex items-center justify-center bg-muted rounded">
+              <FileText className="h-6 w-6 text-primary" />
+            </div>
+          </a>
         )}
 
-        <p className="font-medium truncate">{attachment.name}</p>
-        <p className="text-sm text-muted-foreground">{formatFileSize(attachment.size)}</p>
+        <div className="flex items-center gap-2 mt-1">
+          <a
+            href={attachment.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium truncate hover:underline text-sm"
+          >
+            {attachment.name}
+          </a>
+        </div>
+        <p className="text-xs text-muted-foreground">{formatFileSize(attachment.size)}</p>
       </div>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onDelete}
-        className="opacity-0 group-hover:opacity-100"
-      >
-        <Trash2 className="h-4 w-4 text-destructive" />
-      </Button>
+      <div className="flex gap-1">
+        <a
+          href={attachment.url}
+          download
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Button
+            variant="ghost"
+            size="sm"
+            className="opacity-0 group-hover:opacity-100"
+          >
+            <ArrowRight className="h-4 w-4 rotate-90" /> {/* Download icon proxy */}
+          </Button>
+        </a>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onDelete}
+          className="opacity-0 group-hover:opacity-100"
+        >
+          <Trash2 className="h-4 w-4 text-destructive" />
+        </Button>
+      </div>
     </div>
   );
 };
@@ -683,6 +713,8 @@ export const CardDetailsDialog = ({
         const formData = new FormData();
         formData.append('file', file);
 
+        console.log('Uploading file:', file.name, file.type, file.size);
+
         const response = await fetch('/api/upload', {
           method: 'POST',
           body: formData,
@@ -690,10 +722,12 @@ export const CardDetailsDialog = ({
 
         if (!response.ok) {
           const errorData = await response.json();
+          console.error("Upload failed:", errorData);
           throw new Error(errorData.error || 'Upload failed');
         }
 
         const data = await response.json();
+        console.log("Upload success:", data);
 
         let type: 'image' | 'video' | 'audio' | 'other' = 'other';
         if (file.type.startsWith('image/')) type = 'image';
