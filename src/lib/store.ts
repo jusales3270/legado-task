@@ -25,6 +25,8 @@ export interface Attachment {
   size: number;
   uploadedAt: string;
   thumbnailUrl?: string;
+  transcription?: string;
+  transcriptionStatus?: 'pending' | 'processing' | 'completed' | 'failed';
 }
 
 export interface Comment {

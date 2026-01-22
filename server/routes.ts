@@ -7,6 +7,7 @@ import fs from "fs";
 
 import { db } from "./db.js";
 import { uploadToSupabase, createSignedUploadUrl } from "./supabase.js";
+import { transcribeAudio } from "./openai.js";
 import {
   users,
   clientSubmissions,
@@ -441,6 +442,79 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error("Attachment link error:", error);
       res.status(500).json({ error: "Failed to link attachment" });
+    }
+  });
+
+  // Transcribe Attachment
+  app.post("/api/cards/:id/attachments", async (req: Request, res: Response) => {
+    try {
+      const cardId = parseInt(req.params.id);
+      const { name, url, type, size, thumbnailUrl } = req.body;
+
+      if (!name || !url) {
+        return res.status(400).json({ error: "File details required" });
+      }
+
+      const [attachment] = await db.insert(cardAttachments).values({
+        cardId,
+        fileName: name,
+        fileUrl: url,
+        fileType: type || 'other',
+        fileSize: size || 0,
+        thumbnailUrl,
+        // uploadedBy field removed to avoid schema mismatch
+      }).returning();
+
+      res.json(attachment);
+    } catch (error) {
+      console.error("Card attachment link error:", error);
+      res.status(500).json({ error: "Failed to link attachment to card" });
+    }
+  });
+
+  // Transcribe Attachment
+  app.post("/api/cards/attachments/:id/transcribe", async (req: Request, res: Response) => {
+    try {
+      const attachmentId = parseInt(req.params.id);
+
+      const [attachment] = await db
+        .select()
+        .from(cardAttachments)
+        .where(eq(cardAttachments.id, attachmentId));
+
+      if (!attachment) {
+        return res.status(404).json({ error: "Attachment not found" });
+      }
+
+      // Update status to processing
+      await db
+        .update(cardAttachments)
+        .set({ transcriptionStatus: "processing" })
+        .where(eq(cardAttachments.id, attachmentId));
+
+      // Trigger transcription in background
+      transcribeAudio(attachment.fileUrl)
+        .then(async (text) => {
+          await db
+            .update(cardAttachments)
+            .set({
+              transcription: text,
+              transcriptionStatus: "completed",
+            })
+            .where(eq(cardAttachments.id, attachmentId));
+        })
+        .catch(async (err) => {
+          console.error("Transcription failed", err);
+          await db
+            .update(cardAttachments)
+            .set({ transcriptionStatus: "failed" })
+            .where(eq(cardAttachments.id, attachmentId));
+        });
+
+      res.status(202).json({ message: "Transcription started", status: "processing" });
+    } catch (error) {
+      console.error("Transcription endpoint error:", error);
+      res.status(500).json({ error: "Failed to start transcription" });
     }
   });
 

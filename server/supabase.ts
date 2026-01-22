@@ -24,6 +24,13 @@ export async function ensureBucketExists() {
       const { error } = await supabase.storage.createBucket(STORAGE_BUCKET, {
         public: true,
         fileSizeLimit: 52428800, // 50MB (Supabase free tier limit)
+        allowedMimeTypes: [
+          'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+          'video/mp4', 'video/webm', 'video/quicktime',
+          'audio/mpeg', 'audio/wav', 'audio/ogg',
+          'application/pdf', 'text/plain',
+          'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ]
       });
 
       if (error) {

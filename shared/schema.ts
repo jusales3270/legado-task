@@ -233,6 +233,8 @@ export const cardAttachments = pgTable("card_attachments", {
   fileSize: integer("file_size"),
   mimeType: varchar("mime_type", { length: 100 }),
   uploadedBy: integer("uploaded_by").references(() => users.id),
+  transcription: text("transcription"),
+  transcriptionStatus: varchar("transcription_status", { length: 50 }).default("pending"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
