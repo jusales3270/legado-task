@@ -56,6 +56,7 @@ export async function transcribeAudio(fileUrl: string): Promise<string> {
         const transcription = await client.audio.transcriptions.create({
             file: fs.createReadStream(filePath),
             model: "whisper-1",
+            language: "pt",
         });
 
         // Cleanup temp file
