@@ -316,7 +316,7 @@ const AudioPlayer = ({
           <div className="flex items-center gap-2 mb-2">
             <FileText className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm font-medium">
-              {transcriptionType === 'summarize' ? 'Resumo' : 'Transcrição'}
+              Transcrição
             </span>
           </div>
           <p className="text-sm text-muted-foreground whitespace-pre-wrap">
