@@ -472,6 +472,25 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Get Attachment Details (for polling)
+  app.get("/api/cards/attachments/:id", async (req: Request, res: Response) => {
+    try {
+      const attachmentId = parseInt(req.params.id);
+      const [attachment] = await db
+        .select()
+        .from(cardAttachments)
+        .where(eq(cardAttachments.id, attachmentId));
+
+      if (!attachment) {
+        return res.status(404).json({ error: "Attachment not found" });
+      }
+
+      res.json(attachment);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch attachment" });
+    }
+  });
+
   // Transcribe Attachment
   app.post("/api/cards/attachments/:id/transcribe", async (req: Request, res: Response) => {
     try {
@@ -632,7 +651,23 @@ export function registerRoutes(app: Express): Server {
         .from(cards)
         .where(inArray(cards.listId, boardLists.map(l => l.id)));
 
-      res.json({ ...board, lists: boardLists, cards: boardCards });
+      // Fetch attachments for these cards
+      const cardIds = boardCards.map(c => c.id);
+      let attachments: any[] = [];
+      if (cardIds.length > 0) {
+        attachments = await db
+          .select()
+          .from(cardAttachments)
+          .where(inArray(cardAttachments.cardId, cardIds));
+      }
+
+      // Map attachments to cards
+      const cardsWithAttachments = boardCards.map(card => ({
+        ...card,
+        attachments: attachments.filter(a => a.cardId === card.id)
+      }));
+
+      res.json({ ...board, lists: boardLists, cards: cardsWithAttachments });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch board details" });
     }

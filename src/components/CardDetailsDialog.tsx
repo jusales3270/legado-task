@@ -187,26 +187,45 @@ const AudioPlayer = ({
         description: 'You will be notified when it is ready.',
       });
 
-      // Poll for result (simplified) or just wait if implemented as sync-ish
-      // Since backend is async fire-and-forget but updates DB, we theoretically need to poll or reload card.
-      // For this MVP, let's assume valid "processing" state is enough, 
-      // but ideally we'd show the text when available.
-      // Since the user might stay on this screen, we can poll lightly or just let them refresh.
-      // Or, we can implementation a manual "Check Status" or auto-poll.
-
-      // Let's implement a simple poll for demonstration
+      // Polling logic
       const pollInterval = setInterval(async () => {
         try {
-          // We need an endpoint to get attachment details or just card details
-          // Current API doesn't have specific attachment fetch, only board/card.
-          // We can use the board fetch or card fetch.
-          // Or assume the user will close/reopen.
-          // Actually, sticking to "processing" is safer than complex polling code here.
-        } catch (e) { }
-      }, 5000);
+          const response = await fetch(`/api/cards/attachments/${id}`);
+          if (!response.ok) {
+            // If 404 or other error, arguably we should stop polling, but for transient errors we might continue.
+            // If 404 specifically, maybe the attachment was deleted?
+            if (response.status === 404) clearInterval(pollInterval);
+            return;
+          }
 
-      // Clear interval after some time
-      setTimeout(() => clearInterval(pollInterval), 60000);
+          const updatedAttachment = await response.json();
+
+          if (updatedAttachment.transcriptionStatus === 'completed') {
+            setTranscription(updatedAttachment.transcription);
+            setTranscriptionStatus('completed');
+            setIsTranscribing(false);
+            clearInterval(pollInterval);
+            toast({ title: "Transcription completed!" });
+          } else if (updatedAttachment.transcriptionStatus === 'failed') {
+            setTranscriptionStatus('failed');
+            setIsTranscribing(false);
+            clearInterval(pollInterval);
+            toast({ title: "Transcription failed", variant: "destructive" });
+          }
+          // If still 'processing' or 'pending', do nothing and wait for next poll
+        } catch (e) {
+          console.error("Polling error", e);
+        }
+      }, 2000); // Check every 2 seconds
+
+      // Stop polling after 2 minutes to prevent infinite loops
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        if (isTranscribing) { // If still transcribing effectively (local state)
+          setIsTranscribing(false); // Just stop the spinner
+          // We don't set status to failed necessarily, just stop checking.
+        }
+      }, 120000);
 
     } catch (error) {
       console.error('Transcription error:', error);
