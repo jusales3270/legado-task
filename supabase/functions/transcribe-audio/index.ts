@@ -13,7 +13,7 @@ serve(async (req) => {
 
   try {
     const { audioUrl, transcriptionType } = await req.json();
-    
+
     if (!audioUrl || !transcriptionType) {
       return new Response(
         JSON.stringify({ error: 'audioUrl and transcriptionType are required' }),
@@ -31,7 +31,7 @@ serve(async (req) => {
     }
 
     console.log('Fetching audio file from:', audioUrl);
-    
+
     // Fetch the audio file
     const audioResponse = await fetch(audioUrl);
     if (!audioResponse.ok) {
@@ -52,8 +52,8 @@ serve(async (req) => {
 
     // Determine prompt based on transcription type
     const systemPrompt = transcriptionType === 'summarize'
-      ? 'Você é um assistente especializado em sumarização de áudio. Analise o áudio e forneça um resumo conciso e claro do conteúdo principal.'
-      : 'Você é um assistente especializado em transcrição de áudio. Transcreva todo o conteúdo do áudio palavra por palavra, mantendo a ordem e contexto originais.';
+      ? 'Você é um assistente especializado em sumarização de áudio. Analise o áudio e forneça um resumo conciso e claro do conteúdo principal em Português do Brasil.'
+      : 'Você é um assistente especializado em transcrição de áudio. Transcreva todo o conteúdo do áudio palavra por palavra em Português do Brasil, mantendo a ordem e contexto originais.';
 
     console.log('Sending request to Lovable AI with type:', transcriptionType);
 
@@ -71,16 +71,16 @@ serve(async (req) => {
           messages: [
             {
               role: 'system',
-              content: systemPrompt
+              content: systemPrompt + ' Responda e transcreva exclusivamente em Português do Brasil.'
             },
             {
               role: 'user',
               content: [
                 {
                   type: 'text',
-                  text: transcriptionType === 'summarize' 
-                    ? 'Resuma este áudio:' 
-                    : 'Transcreva este áudio:'
+                  text: transcriptionType === 'summarize'
+                    ? 'Resuma este áudio em Português do Brasil:'
+                    : 'Transcreva este áudio em Português do Brasil:'
                 },
                 {
                   type: 'input_audio',
@@ -99,7 +99,7 @@ serve(async (req) => {
     if (!lovableResponse.ok) {
       const errorText = await lovableResponse.text();
       console.error('Lovable AI error:', lovableResponse.status, errorText);
-      
+
       // Handle rate limits
       if (lovableResponse.status === 429) {
         return new Response(
@@ -107,14 +107,14 @@ serve(async (req) => {
           { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      
+
       if (lovableResponse.status === 402) {
         return new Response(
           JSON.stringify({ error: 'Créditos insuficientes. Por favor, adicione créditos ao seu workspace.' }),
           { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      
+
       return new Response(
         JSON.stringify({ error: 'Failed to transcribe audio', details: errorText }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -137,9 +137,9 @@ serve(async (req) => {
     console.log('Transcription successful');
 
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         transcription,
-        type: transcriptionType 
+        type: transcriptionType
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -147,8 +147,8 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in transcribe-audio function:', error);
     return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+      JSON.stringify({
+        error: error instanceof Error ? error.message : 'Unknown error'
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

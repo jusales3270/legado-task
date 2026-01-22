@@ -152,7 +152,17 @@ class Store {
               members: [], // TODO: fetch members relation
               tags: [], // TODO: fetch tags relation
               checklist: [], // TODO: fetch checklist
-              attachments: Array.isArray(c.attachments) ? c.attachments : [],
+              attachments: (Array.isArray(c.attachments) ? c.attachments : []).map((a: any) => ({
+                id: a.id.toString(),
+                name: a.fileName,
+                url: a.fileUrl,
+                type: a.fileType,
+                size: a.fileSize,
+                uploadedAt: a.createdAt,
+                thumbnailUrl: a.thumbnailUrl,
+                transcription: a.transcription,
+                transcriptionStatus: a.transcriptionStatus
+              })),
               comments: [],
             }))
             .sort((a: any, b: any) => a.order - b.order)
