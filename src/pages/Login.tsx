@@ -119,7 +119,7 @@ export default function Login() {
   return (
     <EtherealBackground
       className="bg-background"
-      animation={{ scale: 50, speed: 10 }}
+      animation={{ scale: 55, speed: 11 }}
     >
       <div className="flex w-full items-center justify-center p-4">
 
