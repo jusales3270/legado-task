@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 interface Submission {
@@ -234,20 +235,52 @@ export function ClientInboxPanel({ onAddToBoard, availableLists }: ClientInboxPa
                   {selectedSubmission?.id === submission.id && (
                     <div className="mt-3 pt-3 border-t space-y-3">
                       {mainAttachment && (
-                        <div className="rounded-md overflow-hidden bg-black/20 border border-white/10">
-                          {mainAttachment.fileType.startsWith("image/") ? (
-                            <img
-                              src={mainAttachment.fileUrl}
-                              alt={mainAttachment.fileName}
-                              className="w-full h-auto max-h-[200px] object-contain"
-                            />
-                          ) : mainAttachment.fileType.startsWith("video/") ? (
-                            <video
-                              src={mainAttachment.fileUrl}
-                              controls
-                              className="w-full h-auto max-h-[200px]"
-                              preload="metadata"
-                            />
+                        <div className="rounded-md overflow-hidden bg-black/20 border border-white/10 group relative">
+                          {mainAttachment.fileType === "image" || mainAttachment.mimeType?.startsWith("image/") ? (
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <div className="cursor-pointer relative">
+                                  <img
+                                    src={mainAttachment.fileUrl}
+                                    alt={mainAttachment.fileName}
+                                    className="w-full h-auto max-h-[200px] object-contain transition-transform group-hover:scale-[1.02]"
+                                  />
+                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition-opacity">
+                                    <span className="text-white text-xs font-medium bg-black/50 px-2 py-1 rounded">Ver Tela Cheia</span>
+                                  </div>
+                                </div>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-4xl w-full p-0 bg-transparent border-none shadow-none text-white">
+                                <img
+                                  src={mainAttachment.fileUrl}
+                                  alt={mainAttachment.fileName}
+                                  className="w-full h-auto max-h-[85vh] object-contain rounded-lg"
+                                />
+                              </DialogContent>
+                            </Dialog>
+                          ) : mainAttachment.fileType === "video" || mainAttachment.mimeType?.startsWith("video/") ? (
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <div className="cursor-pointer relative">
+                                  <video
+                                    src={mainAttachment.fileUrl}
+                                    className="w-full h-auto max-h-[200px] object-contain"
+                                    preload="metadata"
+                                  />
+                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 bg-black/40 transition-opacity pointer-events-none">
+                                    <span className="text-white text-xs font-medium bg-black/50 px-2 py-1 rounded">Expandir Vídeo</span>
+                                  </div>
+                                </div>
+                              </DialogTrigger>
+                              <DialogContent className="max-w-4xl w-full p-0 bg-transparent border-none shadow-none">
+                                <video
+                                  src={mainAttachment.fileUrl}
+                                  controls
+                                  autoPlay
+                                  className="w-full h-auto max-h-[85vh] rounded-lg"
+                                />
+                              </DialogContent>
+                            </Dialog>
                           ) : (
                             <div className="p-4 flex items-center justify-center gap-2 text-muted-foreground">
                               <FileText className="h-6 w-6" />
