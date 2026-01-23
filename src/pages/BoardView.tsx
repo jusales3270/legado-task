@@ -1120,24 +1120,35 @@ const BoardView = () => {
                                 }, new Map<string, number>())
                             ).map(([name, value]) => ({ name, value }));
 
-                            const colors = [
-                              "hsl(var(--tag-red))",
-                              "hsl(var(--tag-orange))",
-                              "hsl(var(--tag-yellow))",
-                              "hsl(var(--tag-green))",
-                              "hsl(var(--tag-blue))",
-                              "hsl(var(--tag-purple))",
-                              "hsl(var(--tag-pink))",
-                            ];
+                            const getTagColor = (tagName: string) => {
+                              const lowerName = tagName.toLowerCase();
+                              if (lowerName.includes("crítico") || lowerName.includes("critica")) return "hsl(var(--tag-red))";
+                              if (lowerName.includes("urgente")) return "hsl(var(--tag-orange))";
+                              if (lowerName.includes("normal")) return "hsl(var(--tag-blue))";
+                              if (lowerName.includes("baixa")) return "hsl(var(--tag-slate))";
+
+                              // Fallback specific colors if names differ slightly but intent is clear
+                              if (lowerName.includes("alta")) return "hsl(var(--tag-orange))";
+                              if (lowerName.includes("média")) return "hsl(var(--tag-yellow))";
+
+                              // Generic rotation for custom tags
+                              const colors = [
+                                "hsl(var(--tag-teal))",
+                                "hsl(var(--tag-purple))",
+                                "hsl(var(--tag-pink))",
+                                "hsl(var(--tag-green))",
+                              ];
+                              return colors[tagName.length % colors.length];
+                            };
 
                             return (
                               <ChartContainer
                                 config={tagCounts.reduce(
-                                  (acc, tag, index) => ({
+                                  (acc, tag) => ({
                                     ...acc,
                                     [tag.name]: {
                                       label: tag.name,
-                                      color: colors[index % colors.length],
+                                      color: getTagColor(tag.name),
                                     },
                                   }),
                                   {} as ChartConfig
@@ -1154,10 +1165,10 @@ const BoardView = () => {
                                     innerRadius={30}
                                     paddingAngle={2}
                                   >
-                                    {tagCounts.map((entry, index) => (
+                                    {tagCounts.map((entry) => (
                                       <Cell
                                         key={entry.name}
-                                        fill={colors[index % colors.length]}
+                                        fill={getTagColor(entry.name)}
                                       />
                                     ))}
                                   </Pie>

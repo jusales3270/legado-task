@@ -61,6 +61,8 @@
     --tag-blue: 210 70% 55%;
     --tag-purple: 280 70% 55%;
     --tag-pink: 320 70% 60%;
+    --tag-orange: 24 95% 53%; /* #f97316 */
+    --tag-slate: 215 16% 47%; /* #64748b */
 
     /* Sidebar - Tema claro */
     --sidebar-background: 200 20% 97%;
