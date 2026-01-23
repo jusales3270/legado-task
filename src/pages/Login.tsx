@@ -10,7 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Lock, Mail, Upload, Settings } from "lucide-react";
 import { useTheme } from "next-themes";
 import loginLogo from "@/assets/logo-legado-digital-login.png";
-import { BeamsBackground } from "@/components/ui/beams-background";
+import { EtherealBackground } from "@/components/ui/ethereal-background";
 
 interface LoginResponse {
   id: number;
@@ -117,8 +117,11 @@ export default function Login() {
   };
 
   return (
-    <BeamsBackground className="bg-background">
-      <div className="flex h-full w-full items-center justify-center p-4">
+    <EtherealBackground
+      className="bg-background"
+      animation={{ scale: 50, speed: 10 }}
+    >
+      <div className="flex w-full items-center justify-center p-4">
 
         <Card className="relative w-full max-w-md bg-card/95 border-border backdrop-blur-sm shadow-2xl" data-testid="card-login">
           <CardHeader className="space-y-4 sm:space-y-6 text-center pb-2 px-4 sm:px-6">
@@ -259,6 +262,6 @@ export default function Login() {
           </CardContent>
         </Card>
       </div>
-    </BeamsBackground>
+    </EtherealBackground>
   );
 }
