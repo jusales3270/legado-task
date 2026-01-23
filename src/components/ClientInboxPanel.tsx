@@ -232,7 +232,31 @@ export function ClientInboxPanel({ onAddToBoard, availableLists }: ClientInboxPa
                   )}
 
                   {selectedSubmission?.id === submission.id && (
-                    <div className="mt-3 pt-3 border-t space-y-2">
+                    <div className="mt-3 pt-3 border-t space-y-3">
+                      {mainAttachment && (
+                        <div className="rounded-md overflow-hidden bg-black/20 border border-white/10">
+                          {mainAttachment.fileType.startsWith("image/") ? (
+                            <img
+                              src={mainAttachment.fileUrl}
+                              alt={mainAttachment.fileName}
+                              className="w-full h-auto max-h-[200px] object-contain"
+                            />
+                          ) : mainAttachment.fileType.startsWith("video/") ? (
+                            <video
+                              src={mainAttachment.fileUrl}
+                              controls
+                              className="w-full h-auto max-h-[200px]"
+                              preload="metadata"
+                            />
+                          ) : (
+                            <div className="p-4 flex items-center justify-center gap-2 text-muted-foreground">
+                              <FileText className="h-6 w-6" />
+                              <span className="text-sm">Pré-visualização não disponível</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       <p className="text-xs font-medium text-foreground">Adicionar ao quadro:</p>
                       <div className="flex flex-wrap gap-1">
                         {availableLists.map((list) => (
