@@ -8,6 +8,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -51,6 +52,7 @@ export default function ClientPortal() {
   const { toast } = useToast();
 
   const [urgency, setUrgency] = useState<UrgencyLevel>("normal");
+  const [title, setTitle] = useState("");
   const [dueDate, setDueDate] = useState<Date | undefined>();
   const [notes, setNotes] = useState("");
   const [pendingFile, setPendingFile] = useState<PendingFile | null>(null);
@@ -156,7 +158,7 @@ export default function ClientPortal() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientId: user.id,
-          title: pendingFile.name,
+          title: title.trim() || pendingFile.name,
           urgency,
           requestedDueDate: dueDate ? format(dueDate, "yyyy-MM-dd") : null,
           notes,
@@ -289,6 +291,7 @@ export default function ClientPortal() {
     setPendingFile(null);
     setUploadProgress(0);
     setUrgency("normal");
+    setTitle("");
     setDueDate(undefined);
     setNotes("");
     setUploadError(null);
@@ -393,6 +396,19 @@ export default function ClientPortal() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+
+
+            <div className="space-y-2">
+              <Label className="text-gray-300">Título do Envio</Label>
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Ex: Vídeo Institucional v2"
+                className="bg-gray-700/50 border-gray-600 text-white placeholder:text-gray-500"
+                data-testid="input-title"
+              />
             </div>
 
             <div className="space-y-2">
@@ -582,7 +598,7 @@ export default function ClientPortal() {
             </Button>
           </CardContent>
         </Card>
-      </main>
-    </div>
+      </main >
+    </div >
   );
 }

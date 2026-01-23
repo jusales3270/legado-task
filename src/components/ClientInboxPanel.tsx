@@ -189,9 +189,9 @@ export function ClientInboxPanel({ onAddToBoard, availableLists }: ClientInboxPa
                         {submission.title || mainAttachment?.fileName || "Envio sem título"}
                       </span>
                     </div>
-                    <Badge className={cn("shrink-0 text-white text-xs", urgency.color)}>
-                      {UrgencyIcon && <UrgencyIcon className="h-3 w-3 mr-1" />}
-                      {urgency.label}
+                    <Badge className={cn("shrink-0 text-white text-xs font-semibold px-2 py-0.5", urgency.color)}>
+                      {UrgencyIcon && <UrgencyIcon className="h-3.5 w-3.5 mr-1.5" />}
+                      {urgency.label.toUpperCase()}
                     </Badge>
                   </div>
 
