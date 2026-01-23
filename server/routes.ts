@@ -683,20 +683,40 @@ export function registerRoutes(app: Express): Server {
       // Fetch attachments for these cards
       const cardIds = boardCards.map(c => c.id);
       let attachments: any[] = [];
+      let mappedTags: any[] = [];
+
       if (cardIds.length > 0) {
         attachments = await db
           .select()
           .from(cardAttachments)
           .where(inArray(cardAttachments.cardId, cardIds));
+
+        const cardTagsData = await db
+          .select({
+            cardId: cardTags.cardId,
+            tag: tags
+          })
+          .from(cardTags)
+          .innerJoin(tags, eq(cardTags.tagId, tags.id))
+          .where(inArray(cardTags.cardId, cardIds));
+
+        mappedTags = cardTagsData;
       }
 
-      // Map attachments to cards
+      // Fetch board tags
+      const boardTags = await db
+        .select()
+        .from(tags)
+        .where(eq(tags.boardId, boardId));
+
+      // Map attachments and tags to cards
       const cardsWithAttachments = boardCards.map(card => ({
         ...card,
-        attachments: attachments.filter(a => a.cardId === card.id)
+        attachments: attachments.filter(a => a.cardId === card.id),
+        tags: mappedTags.filter(t => t.cardId === card.id).map(t => t.tag)
       }));
 
-      res.json({ ...board, lists: boardLists, cards: cardsWithAttachments });
+      res.json({ ...board, lists: boardLists, cards: cardsWithAttachments, tags: boardTags });
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch board details" });
     }
@@ -846,6 +866,54 @@ export function registerRoutes(app: Express): Server {
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to delete card" });
+    }
+  });
+
+  // ========== TAGS API ==========
+
+  // Get Board Tags
+  app.get("/api/boards/:id/tags", async (req: Request, res: Response) => {
+    try {
+      const boardId = parseInt(req.params.id);
+      const boardTags = await db.select().from(tags).where(eq(tags.boardId, boardId));
+      res.json(boardTags);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch tags" });
+    }
+  });
+
+  // Create Tag
+  app.post("/api/tags", async (req: Request, res: Response) => {
+    try {
+      const { boardId, name, color } = req.body;
+
+      if (!boardId || !name || !color) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // Check if tag already exists
+      const [existingTag] = await db
+        .select()
+        .from(tags)
+        .where(and(eq(tags.boardId, boardId), eq(tags.name, name)));
+
+      if (existingTag) {
+        return res.json(existingTag);
+      }
+
+      const [tag] = await db
+        .insert(tags)
+        .values({
+          boardId,
+          name,
+          color,
+        })
+        .returning();
+
+      res.json(tag);
+    } catch (error) {
+      console.error("Create tag error:", error);
+      res.status(500).json({ error: "Failed to create tag" });
     }
   });
 

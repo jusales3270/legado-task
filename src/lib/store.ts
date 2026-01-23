@@ -70,6 +70,7 @@ export interface Board {
   isFavorite: boolean;
   lists: List[];
   members: Member[];
+  tags: Tag[];
   updatedAt: string;
 }
 
@@ -150,7 +151,11 @@ class Store {
               coverImage: c.coverImage,
               archived: c.isArchived,
               members: [], // TODO: fetch members relation
-              tags: [], // TODO: fetch tags relation
+              tags: Array.isArray(c.tags) ? c.tags.map((t: any) => ({
+                id: t.id.toString(),
+                name: t.name,
+                color: t.color
+              })) : [],
               checklist: [], // TODO: fetch checklist
               attachments: (Array.isArray(c.attachments) ? c.attachments : []).map((a: any) => ({
                 id: a.id.toString(),
@@ -177,6 +182,11 @@ class Store {
           isFavorite: data.isFavorite,
           updatedAt: data.updatedAt,
           members: [], // Should fetch members
+          tags: Array.isArray(data.tags) ? data.tags.map((t: any) => ({
+            id: t.id.toString(),
+            name: t.name,
+            color: t.color
+          })) : [],
           lists: lists
         };
 
@@ -220,6 +230,7 @@ class Store {
       id,
       updatedAt: "agora mesmo",
       lists: [],
+      tags: [],
     };
     this.boards.push(newBoard);
     this.notify();
