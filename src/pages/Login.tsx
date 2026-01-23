@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Lock, Mail, Upload, Settings } from "lucide-react";
 import { useTheme } from "next-themes";
 import loginLogo from "@/assets/logo-legado-digital-login.png";
+import { BeamsBackground } from "@/components/ui/beams-background";
 
 interface LoginResponse {
   id: number;
@@ -116,148 +117,148 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
-      <div className="absolute inset-0 bg-gradient-to-br from-background via-secondary to-background"></div>
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMyMDIwMjAiIGZpbGwtb3BhY2l0eT0iMC4xIj48Y2lyY2xlIGN4PSIxIiBjeT0iMSIgcj0iMSIvPjwvZz48L2c+PC9zdmc+')] opacity-20"></div>
+    <BeamsBackground className="bg-background">
+      <div className="flex h-full w-full items-center justify-center p-4">
 
-      <Card className="relative w-full max-w-md bg-card/95 border-border backdrop-blur-sm shadow-2xl" data-testid="card-login">
-        <CardHeader className="space-y-4 sm:space-y-6 text-center pb-2 px-4 sm:px-6">
-          <div className="mx-auto">
-            <img
-              src={loginLogo}
-              alt="Legado Digital"
-              className="h-20 sm:h-28 w-auto mx-auto rounded-lg"
-            />
-          </div>
-          <div>
-            <CardTitle className="text-xl sm:text-2xl font-bold text-foreground">Bem-vindo</CardTitle>
-            <CardDescription className="text-muted-foreground text-sm">
-              Escolha como deseja acessar
-            </CardDescription>
-          </div>
-        </CardHeader>
+        <Card className="relative w-full max-w-md bg-card/95 border-border backdrop-blur-sm shadow-2xl" data-testid="card-login">
+          <CardHeader className="space-y-4 sm:space-y-6 text-center pb-2 px-4 sm:px-6">
+            <div className="mx-auto">
+              <img
+                src={loginLogo}
+                alt="Legado Digital"
+                className="h-20 sm:h-28 w-auto mx-auto rounded-lg"
+              />
+            </div>
+            <div>
+              <CardTitle className="text-xl sm:text-2xl font-bold text-foreground">Bem-vindo</CardTitle>
+              <CardDescription className="text-muted-foreground text-sm">
+                Escolha como deseja acessar
+              </CardDescription>
+            </div>
+          </CardHeader>
 
-        <CardContent>
-          <Tabs defaultValue="client" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="client" className="flex items-center gap-2" data-testid="tab-client">
-                <Upload className="w-4 h-4" />
-                Sou Cliente
-              </TabsTrigger>
-              <TabsTrigger value="admin" className="flex items-center gap-2" data-testid="tab-admin">
-                <Settings className="w-4 h-4" />
-                Administrativo
-              </TabsTrigger>
-            </TabsList>
+          <CardContent>
+            <Tabs defaultValue="client" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 mb-6">
+                <TabsTrigger value="client" className="flex items-center gap-2" data-testid="tab-client">
+                  <Upload className="w-4 h-4" />
+                  Sou Cliente
+                </TabsTrigger>
+                <TabsTrigger value="admin" className="flex items-center gap-2" data-testid="tab-admin">
+                  <Settings className="w-4 h-4" />
+                  Administrativo
+                </TabsTrigger>
+              </TabsList>
 
-            <TabsContent value="client">
-              <form onSubmit={handleClientSubmit} className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="client-email" className="text-foreground">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="client-email"
-                      type="email"
-                      placeholder="Digite seu email"
-                      value={clientEmail}
-                      onChange={(e) => setClientEmail(e.target.value)}
-                      className="pl-10 bg-secondary/50 border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20"
-                      required
-                      data-testid="input-client-email"
-                    />
+              <TabsContent value="client">
+                <form onSubmit={handleClientSubmit} className="space-y-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="client-email" className="text-foreground">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="client-email"
+                        type="email"
+                        placeholder="Digite seu email"
+                        value={clientEmail}
+                        onChange={(e) => setClientEmail(e.target.value)}
+                        className="pl-10 bg-secondary/50 border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20"
+                        required
+                        data-testid="input-client-email"
+                      />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Acesse diretamente para enviar seus arquivos
+                    </p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Acesse diretamente para enviar seus arquivos
+
+                  <Button
+                    type="submit"
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6 transition-all duration-300 shadow-lg shadow-primary/25"
+                    disabled={clientLoginMutation.isPending}
+                    data-testid="button-client-access"
+                  >
+                    {clientLoginMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Acessando...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Acessar Portal
+                      </>
+                    )}
+                  </Button>
+                </form>
+              </TabsContent>
+
+              <TabsContent value="admin">
+                <form onSubmit={handleAdminSubmit} className="space-y-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-email" className="text-foreground">Email</Label>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="admin-email"
+                        type="email"
+                        placeholder="Digite seu email"
+                        value={adminEmail}
+                        onChange={(e) => setAdminEmail(e.target.value)}
+                        className="pl-10 bg-secondary/50 border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20"
+                        required
+                        data-testid="input-admin-email"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-password" className="text-foreground">Senha</Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        id="admin-password"
+                        type="password"
+                        placeholder="Digite sua senha"
+                        value={adminPassword}
+                        onChange={(e) => setAdminPassword(e.target.value)}
+                        className="pl-10 bg-secondary/50 border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20"
+                        required
+                        data-testid="input-admin-password"
+                      />
+                    </div>
+                  </div>
+
+                  <Button
+                    type="submit"
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6 transition-all duration-300 shadow-lg shadow-primary/25"
+                    disabled={adminLoginMutation.isPending}
+                    data-testid="button-admin-login"
+                  >
+                    {adminLoginMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Entrando...
+                      </>
+                    ) : (
+                      <>
+                        <Lock className="mr-2 h-4 w-4" />
+                        Entrar
+                      </>
+                    )}
+                  </Button>
+                </form>
+
+                <div className="mt-4 text-center">
+                  <p className="text-muted-foreground text-xs">
+                    Demo: admin@demo.com (senha: 1234)
                   </p>
                 </div>
-
-                <Button
-                  type="submit"
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6 transition-all duration-300 shadow-lg shadow-primary/25"
-                  disabled={clientLoginMutation.isPending}
-                  data-testid="button-client-access"
-                >
-                  {clientLoginMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Acessando...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="mr-2 h-4 w-4" />
-                      Acessar Portal
-                    </>
-                  )}
-                </Button>
-              </form>
-            </TabsContent>
-
-            <TabsContent value="admin">
-              <form onSubmit={handleAdminSubmit} className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="admin-email" className="text-foreground">Email</Label>
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="admin-email"
-                      type="email"
-                      placeholder="Digite seu email"
-                      value={adminEmail}
-                      onChange={(e) => setAdminEmail(e.target.value)}
-                      className="pl-10 bg-secondary/50 border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20"
-                      required
-                      data-testid="input-admin-email"
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="admin-password" className="text-foreground">Senha</Label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="admin-password"
-                      type="password"
-                      placeholder="Digite sua senha"
-                      value={adminPassword}
-                      onChange={(e) => setAdminPassword(e.target.value)}
-                      className="pl-10 bg-secondary/50 border-border text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20"
-                      required
-                      data-testid="input-admin-password"
-                    />
-                  </div>
-                </div>
-
-                <Button
-                  type="submit"
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-6 transition-all duration-300 shadow-lg shadow-primary/25"
-                  disabled={adminLoginMutation.isPending}
-                  data-testid="button-admin-login"
-                >
-                  {adminLoginMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Entrando...
-                    </>
-                  ) : (
-                    <>
-                      <Lock className="mr-2 h-4 w-4" />
-                      Entrar
-                    </>
-                  )}
-                </Button>
-              </form>
-
-              <div className="mt-4 text-center">
-                <p className="text-muted-foreground text-xs">
-                  Demo: admin@demo.com (senha: 1234)
-                </p>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-    </div>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </div>
+    </BeamsBackground>
   );
 }
