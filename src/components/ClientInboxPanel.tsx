@@ -318,7 +318,7 @@ export function ClientInboxPanel({ onAddToBoard, availableLists }: ClientInboxPa
                           onClick={(e) => e.stopPropagation()}
                         >
                           <Download className="h-3 w-3" />
-                          Baixar arquivo
+                          Visualizar Mídia
                         </a>
                       )}
                     </div>
