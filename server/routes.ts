@@ -289,6 +289,103 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // ========== USER MANAGEMENT ==========
+
+  // Update User Profile (Name)
+  app.patch("/api/users/:id", async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const { name } = req.body;
+
+      if (!name) {
+        return res.status(400).json({ error: "Nome é obrigatório" });
+      }
+
+      const [updatedUser] = await db
+        .update(users)
+        .set({ name, updatedAt: new Date() })
+        .where(eq(users.id, userId))
+        .returning();
+
+      if (!updatedUser) {
+        return res.status(404).json({ error: "Usuário não encontrado" });
+      }
+
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Update user error:", error);
+      res.status(500).json({ error: "Falha ao atualizar usuário" });
+    }
+  });
+
+  // Change Password
+  app.post("/api/users/:id/change-password", async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const { currentPassword, newPassword } = req.body;
+
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ error: "Senhas são obrigatórias" });
+      }
+
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+
+      if (!user) {
+        return res.status(404).json({ error: "Usuário não encontrado" });
+      }
+
+      // Verify current password
+      const isValid = await bcrypt.compare(currentPassword, user.password || "");
+      if (!isValid) {
+        return res.status(400).json({ error: "Senha atual incorreta" });
+      }
+
+      // Hash new password
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      await db
+        .update(users)
+        .set({ password: hashedPassword, updatedAt: new Date() })
+        .where(eq(users.id, userId));
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Change password error:", error);
+      res.status(500).json({ error: "Falha ao alterar senha" });
+    }
+  });
+
+  // Upload Profile Photo
+  app.post("/api/users/:id/upload-photo", upload.single("photo"), async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.params.id);
+      if (!req.file) {
+        return res.status(400).json({ error: "Nenhuma imagem enviada" });
+      }
+
+      const result = await uploadToSupabase(
+        req.file.buffer,
+        `avatars/${userId}-${Date.now()}-${req.file.originalname}`,
+        req.file.mimetype
+      );
+
+      if (!result) {
+        throw new Error("Falha no upload para o Supabase");
+      }
+
+      const [updatedUser] = await db
+        .update(users)
+        .set({ profilePhoto: result.url, updatedAt: new Date() })
+        .where(eq(users.id, userId))
+        .returning();
+
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Upload photo error:", error);
+      res.status(500).json({ error: "Falha ao enviar foto" });
+    }
+  });
+
   // ========== GENERAL UPLOAD API (Admin Kanban) ==========
   app.post("/api/upload", upload.single("file"), async (req: Request, res: Response) => {
     try {
